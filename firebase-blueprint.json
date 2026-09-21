@@ -1,0 +1,160 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role and subscription summary",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "planId": { "type": "string" },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired"] },
+        "subscriptionExpiry": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Donghua episode or series video",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "donghuaName": { "type": "string" },
+        "description": { "type": "string" },
+        "episodeNumber": { "type": "number" },
+        "seasonNumber": { "type": "number" },
+        "thumbnailUrl": { "type": "string" },
+        "videoStoragePath": { "type": "string" },
+        "videoStreamUrl": { "type": "string" },
+        "accessType": { "type": "string", "enum": ["free", "subscription", "exclusive", "vip"] },
+        "requiredPlan": { "type": "string", "enum": ["basic", "premium", "vip"] },
+        "duration": { "type": "string" },
+        "category": { "type": "string" },
+        "genre": { "type": "string" },
+        "language": { "type": "string" },
+        "subtitles": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "published": { "type": "boolean" },
+        "views": { "type": "number" },
+        "likes": { "type": "number" },
+        "rightsStatus": { "type": "string" },
+        "licenseInfo": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "accessType", "published"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "User subscription record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expired", "cancelled"] },
+        "startDate": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "paymentId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "planId", "status", "startDate", "expiryDate"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment verification logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "signature": { "type": "string" },
+        "status": { "type": "string", "enum": ["created", "verified", "failed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "amount", "status"]
+    },
+    "WatchHistory": {
+      "title": "WatchHistory",
+      "description": "User playback progress",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "videoId": { "type": "string" },
+        "progress": { "type": "number" },
+        "progressPercent": { "type": "number" },
+        "duration": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "lastWatchedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "videoId", "lastWatchedAt"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Notification delivery record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "type": { "type": "string" },
+        "subscriptionId": { "type": "string" },
+        "sentAt": { "type": "string" },
+        "channel": { "type": "string" },
+        "status": { "type": "string" },
+        "recipient": { "type": "string" },
+        "subject": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "type", "sentAt", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile with role and notification preferences"
+    },
+    "/videos/{videoId}": {
+      "schema": { "$ref": "#/entities/Video" },
+      "description": "Donghua videos"
+    },
+    "/subscriptions/{subId}": {
+      "schema": { "$ref": "#/entities/Subscription" },
+      "description": "User subscription records"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment history"
+    },
+    "/watchHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/WatchHistory" },
+      "description": "Root user watch history records (userId_videoId format)"
+    },
+    "/notificationLogs/{logId}": {
+      "schema": { "$ref": "#/entities/NotificationLog" },
+      "description": "System and admin notification delivery logs"
+    },
+    "/users/{userId}/watchHistory/{videoId}": {
+      "schema": { "$ref": "#/entities/WatchHistory" },
+      "description": "User watch progress"
+    },
+    "/users/{userId}/watchlist/{videoId}": {
+      "schema": { "type": "object" },
+      "description": "User saved watchlist"
+    }
+  }
+}

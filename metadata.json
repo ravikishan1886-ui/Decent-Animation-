@@ -1,0 +1,6 @@
+{
+  "name": "Decent Animation",
+  "description": "A premium Hindi and English Donghua streaming platform featuring Chinese animation, cultivation fantasy, and subscription access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
