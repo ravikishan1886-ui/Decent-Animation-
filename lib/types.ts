@@ -32,15 +32,202 @@ export interface NotificationPreferences {
 
 export interface UserProfile {
   uid: string;
+  userId?: string;
   name: string;
+  username?: string;
   email: string;
   role: UserRole;
+  profileImage?: string;
+  plan?: RequiredPlan | string;
+  currentPlan?: RequiredPlan | string;
   planId?: string;
+  planStartDate?: string | null;
+  planExpiryDate?: string | null;
+  lastLogin?: string;
   subscriptionStatus: SubscriptionStatus;
+  subscriptionStart?: string;
   subscriptionExpiry?: string;
+  paymentSource?: 'RAZORPAY' | 'ADMIN_GRANTED' | 'MANUAL' | 'NONE';
+  superChatTotal?: number;
+  badges?: string[];
+  showOnLeaderboard?: boolean;
+  commentingBanned?: boolean;
   notificationPreferences?: NotificationPreferences;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface CommentItem {
+  id: string;
+  userId: string;
+  username: string;
+  profileImage?: string;
+  videoId: string;
+  text: string;
+  content?: string;
+  createdAt: string;
+  updatedAt?: string;
+  userPlan: RequiredPlan;
+  badge?: string;
+  isPinned: boolean;
+  isHighlighted: boolean;
+  isSuperChat?: boolean;
+  superChatAmount?: number;
+  likesCount: number;
+  likes?: number;
+  dislikes?: number;
+  likedBy?: string[];
+  parentId?: string | null;
+  replyToUsername?: string;
+  status: 'active' | 'hidden' | 'reported';
+  reportReason?: string;
+}
+
+export interface CommentReport {
+  id: string;
+  commentId: string;
+  videoId: string;
+  reporterUserId: string;
+  reporterEmail?: string;
+  reason: string;
+  createdAt: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+}
+
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface PollItem {
+  id: string;
+  pollId: string;
+  question: string;
+  description?: string;
+  options: PollOption[];
+  createdAt: string;
+  endAt?: string;
+  status: 'active' | 'closed' | 'scheduled';
+  allowedPlans: 'all' | 'logged_in' | 'basic+' | 'premium+' | 'vip';
+  totalVotes: number;
+  votedUserIds?: string[];
+}
+
+export interface PollVote {
+  id: string;
+  pollId: string;
+  userId: string;
+  optionId: string;
+  votedAt: string;
+}
+
+export interface LiveStreamItem {
+  id: string;
+  liveId: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+  streamUrl: string;
+  hlsStreamUrl?: string;
+  status: 'scheduled' | 'live' | 'ended';
+  startTime: string;
+  scheduledStartTime?: string;
+  endedAt?: string;
+  accessLevel: 'public' | 'free' | 'basic' | 'premium' | 'vip';
+  accessTier?: 'public' | 'free' | 'basic' | 'premium' | 'vip';
+  viewerCount: number;
+  superChatTotal?: number;
+  replayVideoId?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface LiveChatMessage {
+  id: string;
+  liveId: string;
+  userId: string;
+  username: string;
+  profileImage?: string;
+  message: string;
+  content?: string;
+  userPlan: RequiredPlan;
+  badge?: string;
+  isSuperChat?: boolean;
+  superChatAmount?: number;
+  amount?: number;
+  createdAt: string;
+}
+
+export interface SuperChatItem {
+  id: string;
+  superChatId: string;
+  userId: string;
+  username: string;
+  userEmail?: string;
+  profileImage?: string;
+  amount: number;
+  message: string;
+  targetId: string; // videoId or liveId
+  targetType: 'video' | 'live';
+  paymentId: string;
+  status: 'created' | 'verified' | 'failed' | 'refunded';
+  badgeLevel?: 'supporter' | 'super_supporter' | 'top_supporter';
+  createdAt: string;
+}
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  message: string;
+  content?: string;
+  type?: string;
+  image?: string;
+  targetAudience: 'all' | 'free' | 'basic' | 'premium' | 'vip';
+  publishDate: string;
+  expiryDate?: string;
+  linkUrl?: string;
+  link?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'video_release' | 'subscription' | 'poll' | 'live_stream' | 'announcement' | 'superchat' | 'system';
+  linkUrl?: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export type NotificationItem = InAppNotification;
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username: string;
+  profileImage?: string;
+  plan: RequiredPlan;
+  isVip: boolean;
+  isPremium: boolean;
+  superChatTotal: number;
+  superChatCount?: number;
+  badge: string;
+  badgeLevel?: string;
+  isAnonymous?: boolean;
+}
+
+export interface UserBadge {
+  userId: string;
+  badgeId: string;
+  name: string;
+  icon: string;
+  awardedAt: string;
+  source: string;
 }
 
 export interface VideoItem {
@@ -48,18 +235,24 @@ export interface VideoItem {
   title: string;
   normalizedTitle?: string;
   donghuaName: string;
+  seriesId?: string;
+  seriesName?: string;
   description: string;
   normalizedDescription?: string;
   shortDescription?: string;
   contentType?: ContentType;
+  videoType?: 'episode' | 'movie' | 'special';
   episodeNumber: number;
   seasonNumber: number;
   thumbnailUrl: string;
   posterUrl?: string;
-  videoStoragePath: string; // internal storage path or reference
+  embedUrl?: string; // AVCaption responsive embed URL
+  videoUrl?: string; // AVCaption direct stream URL (optional)
+  avcaptionUrl?: string;
+  videoStoragePath?: string; // internal storage path or reference
   videoStreamUrl?: string; // signed/proxied streaming URL or sample
   accessType: AccessType;
-  requiredPlan: RequiredPlan;
+  requiredPlan: RequiredPlan | string;
   duration: string;
   durationSeconds?: number;
   category: string;
@@ -71,6 +264,8 @@ export interface VideoItem {
   tags: string[];
   published: boolean;
   status?: PublishingStatus;
+  releaseDate?: string;
+  createdBy?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   isFeatured?: boolean;

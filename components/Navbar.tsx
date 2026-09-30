@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { DonghuaLogo } from './DonghuaLogo';
 import { AdminLoginModal } from './AdminLoginModal';
+import { NotificationCenter } from './NotificationCenter';
 import { useRouter } from 'next/navigation';
 import {
   Compass,
@@ -19,6 +20,8 @@ import {
   X,
   Tv,
   Upload,
+  Radio,
+  Trophy,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -40,7 +43,8 @@ export function Navbar() {
   const navLinks = [
     { label: 'Home', href: '/' },
     { label: 'Browse', href: '/browse' },
-    { label: 'Search', href: '/search' },
+    { label: 'Live', href: '/live', badge: 'LIVE' },
+    { label: 'Leaderboard', href: '/leaderboard' },
     { label: 'Subscriptions', href: '/subscription' },
   ];
 
@@ -68,26 +72,31 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`relative px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
                   isActive
                     ? 'text-white bg-[#1a1a24] border border-amber-500/30 shadow-[0_0_12px_rgba(212,175,55,0.15)]'
                     : 'text-gray-300 hover:text-white hover:bg-[#14141e]'
                 }`}
               >
-                {link.label}
+                {link.badge && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                )}
+                <span>{link.label}</span>
               </Link>
             );
           })}
 
-          {/* Upload Content Action */}
-          <button
-            type="button"
-            onClick={handleUploadClick}
-            className="hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-gradient-to-r from-red-950/80 via-[#221016] to-[#150d12] border border-red-700/60 hover:border-amber-500/70 hover:shadow-[0_0_15px_rgba(201,42,42,0.35)] transition-all ml-1"
-          >
-            <Upload className="w-3.5 h-3.5 text-amber-400" />
-            <span>Upload Content</span>
-          </button>
+          {/* Upload Content Action - VISIBLE ONLY TO ADMINS */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => router.push('/admin?tab=upload')}
+              className="hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-gradient-to-r from-red-950/80 via-[#221016] to-[#150d12] border border-red-700/60 hover:border-amber-500/70 hover:shadow-[0_0_15px_rgba(201,42,42,0.35)] transition-all ml-1"
+            >
+              <Upload className="w-3.5 h-3.5 text-amber-400" />
+              <span>Upload Content</span>
+            </button>
+          )}
 
           {isAdmin && (
             <Link
@@ -95,33 +104,36 @@ export function Navbar() {
               className="ml-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider bg-red-950/60 text-red-300 border border-red-800/60 hover:bg-red-900/60 transition-colors shadow-[0_0_12px_rgba(201,42,42,0.25)]"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-red-400" />
-              Admin Portal
+              Admin
             </Link>
           )}
         </nav>
 
         {/* Action Controls & Auth */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5">
           <Link
             href="/search"
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1a1a24] transition-colors md:hidden"
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1a1a24] transition-colors"
             aria-label="Search"
           >
             <Search className="w-5 h-5" />
           </Link>
 
+          {/* Real-time Community & Admin Notification Center */}
+          <NotificationCenter />
+
           {user ? (
             <div className="relative">
               <button
                 onClick={() => setUserDropdown(!userDropdown)}
-                className="flex items-center space-x-2.5 p-1.5 pr-3 rounded-full bg-[#15151f] border border-[#2b2b3b] hover:border-amber-500/40 transition-all text-left"
+                className="flex items-center space-x-2 p-1.5 pr-3 rounded-full bg-[#15151f] border border-[#2b2b3b] hover:border-amber-500/40 transition-all text-left"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-900 to-amber-700 flex items-center justify-center text-white text-xs font-bold ring-2 ring-amber-500/20">
                   {profile?.name ? profile.name.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="hidden sm:block text-xs">
                   <p className="font-semibold text-gray-200 leading-none truncate max-w-[90px]">
-                    {profile?.name || user.email?.split('@')[0]}
+                    {profile?.name || user.displayName || user.email?.split('@')[0]}
                   </p>
                   <p className="text-[10px] text-amber-400 font-mono mt-0.5 uppercase">
                     {isAdmin ? 'Admin' : isSubscriptionActive ? subscriptionTier : 'Free'}
@@ -141,19 +153,35 @@ export function Navbar() {
                     {isSubscriptionActive ? (
                       <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
                         <Crown className="w-3 h-3 text-amber-400" />
-                        {subscriptionTier} Plan Active
+                        {subscriptionTier} Active
                       </span>
                     ) : (
-                      <span className="inline-block mt-1 text-[10px] text-gray-400">No active plan</span>
+                      <span className="inline-block mt-1 text-[10px] text-gray-400">Free Cultivator</span>
                     )}
                   </div>
+
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#1a1a28] transition-colors"
+                  >
+                    <User className="w-4 h-4 text-gray-400" />
+                    Account &amp; Countdown
+                  </Link>
 
                   <Link
                     href="/dashboard"
                     className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#1a1a28] transition-colors"
                   >
-                    <User className="w-4 h-4 text-gray-400" />
-                    User Dashboard
+                    <Compass className="w-4 h-4 text-gray-400" />
+                    Watch History
+                  </Link>
+
+                  <Link
+                    href="/leaderboard"
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-amber-300 hover:text-amber-200 hover:bg-[#1a1a28] transition-colors"
+                  >
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    Hall of Fame
                   </Link>
 
                   <Link
@@ -161,17 +189,19 @@ export function Navbar() {
                     className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#1a1a28] transition-colors"
                   >
                     <Crown className="w-4 h-4 text-amber-400" />
-                    My Subscription
+                    Manage Plans
                   </Link>
 
-                  <button
-                    type="button"
-                    onClick={handleUploadClick}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-amber-300 hover:text-amber-200 hover:bg-[#1f1520] transition-colors text-left font-semibold"
-                  >
-                    <Upload className="w-4 h-4 text-amber-400" />
-                    Upload Content
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => router.push('/admin?tab=upload')}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-amber-300 hover:text-amber-200 hover:bg-[#1f1520] transition-colors text-left font-semibold"
+                    >
+                      <Upload className="w-4 h-4 text-amber-400" />
+                      Upload Content
+                    </button>
+                  )}
 
                   {isAdmin && (
                     <Link
@@ -179,7 +209,7 @@ export function Navbar() {
                       className="flex items-center gap-2.5 px-4 py-2 text-sm text-red-300 hover:text-red-200 hover:bg-red-950/40 transition-colors"
                     >
                       <ShieldCheck className="w-4 h-4 text-red-400" />
-                      Admin Control Panel
+                      Admin Command Center
                     </Link>
                   )}
 
@@ -237,18 +267,19 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          {/* Upload Content Button in Mobile Drawer */}
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleUploadClick();
-            }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base font-bold text-amber-300 bg-red-950/30 border border-red-800/40 text-left"
-          >
-            <Upload className="w-4 h-4 text-amber-400" />
-            Upload Content
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                router.push('/admin?tab=upload');
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base font-bold text-amber-300 bg-red-950/30 border border-red-800/40 text-left"
+            >
+              <Upload className="w-4 h-4 text-amber-400" />
+              Upload Content
+            </button>
+          )}
 
           {isAdmin && (
             <Link
@@ -262,7 +293,7 @@ export function Navbar() {
         </div>
       )}
 
-      {/* Admin Login Modal (Triggered when non-admin clicks Upload Content) */}
+      {/* Admin Login Modal */}
       <AdminLoginModal
         isOpen={showAdminLoginModal}
         onClose={() => setShowAdminLoginModal(false)}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { checkVideoAccess, generateSecureStreamUrl } from '@/lib/security';
-import { INITIAL_SEED_VIDEOS } from '@/lib/seed-data';
+import { checkVideoAccess } from '@/lib/security';
+import { fetchVideoById } from '@/lib/video-service';
+import { VideoItem } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,9 +18,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing videoId' }, { status: 400 });
     }
 
-    // Retrieve video metadata (from seed catalog or database)
-    const video = INITIAL_SEED_VIDEOS.find((v) => v.id === videoId);
-    const accessType = video ? video.accessType : 'subscription';
+    // Retrieve video metadata from Realtime Database (with Firestore / Seed fallback)
+    const video: VideoItem | null = await fetchVideoById(videoId);
+
+    if (!video) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
+
+    const accessType = video.accessType || 'subscription';
 
     // Verify access server-side
     const accessCheck = checkVideoAccess(
@@ -37,19 +42,19 @@ export async function POST(req: NextRequest) {
           reason: accessCheck.reason,
           requiredTier: accessCheck.requiredTier,
           streamUrl: null,
+          requiredPlan: video.requiredPlan,
         },
         { status: 403 }
       );
     }
 
-    // Authorized: generate secure signed streaming reference
-    const signedUrl = generateSecureStreamUrl(videoId, userId || 'guest');
-    const rawPlaybackUrl = video?.videoStreamUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    // Authorized: return AVCaption responsive embed URL
+    const rawPlaybackUrl = video.embedUrl || video.avcaptionUrl || video.videoStreamUrl || video.videoUrl || '';
 
     return NextResponse.json({
       allowed: true,
-      signedUrl,
       playbackUrl: rawPlaybackUrl,
+      embedUrl: video.embedUrl || video.avcaptionUrl || rawPlaybackUrl,
       quality: userPlanTier === 'vip' ? '4K UltraHD / 1080p 60fps' : userPlanTier === 'premium' ? '1080p FHD' : '720p HD',
       watermark: userId ? `DA-UID-${userId.slice(0, 6)}` : undefined,
     });
@@ -67,15 +72,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing videoId query parameter' }, { status: 400 });
   }
 
-  const video = INITIAL_SEED_VIDEOS.find((v) => v.id === videoId);
+  const video = await fetchVideoById(videoId);
   if (!video) {
     return NextResponse.json({ error: 'Video not found' }, { status: 404 });
   }
 
   return NextResponse.json({
     videoId,
+    title: video.title,
+    seriesName: video.seriesName || video.donghuaName,
+    episodeNumber: video.episodeNumber,
     accessType: video.accessType,
     requiredPlan: video.requiredPlan,
     isFree: video.accessType === 'free',
+    hasEmbedUrl: Boolean(video.embedUrl || video.avcaptionUrl),
   });
 }

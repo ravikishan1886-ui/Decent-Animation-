@@ -7,11 +7,20 @@
       "properties": {
         "uid": { "type": "string" },
         "name": { "type": "string" },
+        "username": { "type": "string" },
         "email": { "type": "string" },
         "role": { "type": "string", "enum": ["user", "admin"] },
+        "profileImage": { "type": "string" },
+        "currentPlan": { "type": "string" },
         "planId": { "type": "string" },
-        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired"] },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired", "cancelled"] },
+        "subscriptionStart": { "type": "string" },
         "subscriptionExpiry": { "type": "string" },
+        "paymentSource": { "type": "string" },
+        "superChatTotal": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "showOnLeaderboard": { "type": "boolean" },
+        "commentingBanned": { "type": "boolean" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
@@ -31,19 +40,15 @@
         "thumbnailUrl": { "type": "string" },
         "videoStoragePath": { "type": "string" },
         "videoStreamUrl": { "type": "string" },
-        "accessType": { "type": "string", "enum": ["free", "subscription", "exclusive", "vip"] },
-        "requiredPlan": { "type": "string", "enum": ["basic", "premium", "vip"] },
+        "accessType": { "type": "string", "enum": ["free", "subscription", "exclusive", "vip", "custom"] },
+        "requiredPlan": { "type": "string", "enum": ["free", "basic", "premium", "vip"] },
         "duration": { "type": "string" },
         "category": { "type": "string" },
         "genre": { "type": "string" },
         "language": { "type": "string" },
-        "subtitles": { "type": "string" },
-        "tags": { "type": "array", "items": { "type": "string" } },
         "published": { "type": "boolean" },
         "views": { "type": "number" },
         "likes": { "type": "number" },
-        "rightsStatus": { "type": "string" },
-        "licenseInfo": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
@@ -63,70 +68,101 @@
         "paymentId": { "type": "string" },
         "orderId": { "type": "string" },
         "amount": { "type": "number" },
-        "currency": { "type": "string" },
+        "paymentSource": { "type": "string" },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "userId", "planId", "status", "startDate", "expiryDate"]
     },
-    "Payment": {
-      "title": "Payment",
-      "description": "Payment verification logs",
+    "Comment": {
+      "title": "Comment",
+      "description": "Video user comment",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "userId": { "type": "string" },
-        "planId": { "type": "string" },
-        "amount": { "type": "number" },
-        "currency": { "type": "string" },
-        "paymentId": { "type": "string" },
-        "orderId": { "type": "string" },
-        "signature": { "type": "string" },
-        "status": { "type": "string", "enum": ["created", "verified", "failed"] },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "userId", "amount", "status"]
-    },
-    "WatchHistory": {
-      "title": "WatchHistory",
-      "description": "User playback progress",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "profileImage": { "type": "string" },
         "videoId": { "type": "string" },
-        "progress": { "type": "number" },
-        "progressPercent": { "type": "number" },
-        "duration": { "type": "number" },
-        "completed": { "type": "boolean" },
-        "lastWatchedAt": { "type": "string" },
+        "text": { "type": "string" },
         "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "userPlan": { "type": "string" },
+        "badge": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "isHighlighted": { "type": "boolean" },
+        "likesCount": { "type": "number" },
+        "status": { "type": "string" }
       },
-      "required": ["userId", "videoId", "lastWatchedAt"]
+      "required": ["id", "userId", "videoId", "text", "createdAt"]
     },
-    "NotificationLog": {
-      "title": "NotificationLog",
-      "description": "Notification delivery record",
+    "Poll": {
+      "title": "Poll",
+      "description": "Community poll",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "allowedPlans": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "question", "status", "createdAt"]
+    },
+    "SuperChat": {
+      "title": "SuperChat",
+      "description": "Super Chat contribution",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "userId": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "type": { "type": "string" },
-        "subscriptionId": { "type": "string" },
-        "sentAt": { "type": "string" },
-        "channel": { "type": "string" },
+        "username": { "type": "string" },
+        "amount": { "type": "number" },
+        "message": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "paymentId": { "type": "string" },
         "status": { "type": "string" },
-        "recipient": { "type": "string" },
-        "subject": { "type": "string" },
         "createdAt": { "type": "string" }
       },
-      "required": ["userId", "type", "sentAt", "status"]
+      "required": ["id", "userId", "amount", "status", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Admin platform announcement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "targetAudience": { "type": "string" },
+        "publishDate": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "publishDate"]
+    },
+    "LiveStream": {
+      "title": "LiveStream",
+      "description": "Live broadcast event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "streamUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "startTime": { "type": "string" },
+        "accessLevel": { "type": "string" },
+        "viewerCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "status", "startTime"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "User profile with role and notification preferences"
+      "description": "User profiles"
     },
     "/videos/{videoId}": {
       "schema": { "$ref": "#/entities/Video" },
@@ -134,27 +170,51 @@
     },
     "/subscriptions/{subId}": {
       "schema": { "$ref": "#/entities/Subscription" },
-      "description": "User subscription records"
+      "description": "Subscription records"
     },
-    "/payments/{paymentId}": {
-      "schema": { "$ref": "#/entities/Payment" },
-      "description": "Payment history"
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Video comments"
+    },
+    "/commentReports/{reportId}": {
+      "schema": { "type": "object" },
+      "description": "Comment moderation reports"
+    },
+    "/polls/{pollId}": {
+      "schema": { "$ref": "#/entities/Poll" },
+      "description": "Community polls"
+    },
+    "/pollVotes/{voteId}": {
+      "schema": { "type": "object" },
+      "description": "User poll votes (pollId_userId format)"
+    },
+    "/superChats/{chatId}": {
+      "schema": { "$ref": "#/entities/SuperChat" },
+      "description": "Verified Super Chats"
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Admin platform announcements"
+    },
+    "/liveStreams/{liveId}": {
+      "schema": { "$ref": "#/entities/LiveStream" },
+      "description": "Live stream broadcasts"
+    },
+    "/liveStreams/{liveId}/chat/{messageId}": {
+      "schema": { "type": "object" },
+      "description": "Live chat messages"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "type": "object" },
+      "description": "User in-app notifications"
     },
     "/watchHistory/{historyId}": {
-      "schema": { "$ref": "#/entities/WatchHistory" },
-      "description": "Root user watch history records (userId_videoId format)"
-    },
-    "/notificationLogs/{logId}": {
-      "schema": { "$ref": "#/entities/NotificationLog" },
-      "description": "System and admin notification delivery logs"
-    },
-    "/users/{userId}/watchHistory/{videoId}": {
-      "schema": { "$ref": "#/entities/WatchHistory" },
-      "description": "User watch progress"
-    },
-    "/users/{userId}/watchlist/{videoId}": {
       "schema": { "type": "object" },
-      "description": "User saved watchlist"
+      "description": "User watch progress (userId_videoId format)"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "type": "object" },
+      "description": "Payment records"
     }
   }
 }

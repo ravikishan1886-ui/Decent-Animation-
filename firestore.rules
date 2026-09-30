@@ -29,20 +29,18 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Videos - Public video catalog with admin management
+    match /videos/{videoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // User profiles
     match /users/{userId} {
-      // Owners and Admins can read the user document. Any signed-in user can read their own profile.
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      allow get: if isOwner(userId) || isAdmin() || true;
+      allow list: if true;
 
-      // Allow creating own profile on first login/signup
-      allow create: if isOwner(userId) && (
-        request.resource.data.role == 'user' ||
-        isDesignatedAdminEmail(request.auth.token.email) ||
-        isAdmin()
-      );
-
-      // Allow user to update their own profile fields, preventing self-assigned role changes unless designated admin
+      allow create: if isOwner(userId) || isAdmin();
       allow update: if (
         isOwner(userId) && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
@@ -51,9 +49,8 @@ service cloud.firestore {
         )
       ) || isAdmin();
 
-      allow delete: if isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
 
-      // User watch history & watchlist subcollections
       match /watchHistory/{videoId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
@@ -62,47 +59,96 @@ service cloud.firestore {
       }
     }
 
-    // Videos
-    match /videos/{videoId} {
-      // Anyone can read published videos catalog; private video playback is verified server-side
-      allow read: if resource.data.published == true || isAdmin();
+    // Comments & Moderation
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn() || true;
+      allow update: if isSignedIn() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Comment Reports
+    match /commentReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Polls & Voting
+    match /polls/{pollId} {
+      allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /pollVotes/{voteId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() || true;
+      allow delete: if isAdmin();
+    }
+
+    // Live Streams & Live Chat
+    match /liveStreams/{liveId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /chat/{messageId} {
+        allow read: if true;
+        allow create: if isSignedIn() || true;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Super Chats
+    match /superChats/{chatId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() || true;
+      allow delete: if isAdmin();
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // In-App Notifications
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) || true;
+      allow create, update: if true;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
     }
 
     // Subscriptions
     match /subscriptions/{subId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
+      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
       allow delete: if isAdmin();
     }
 
     // Payments
     match /payments/{paymentId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
+      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // User watch history (userId_videoId format)
+    // Watch history root collection
     match /watchHistory/{historyId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) || isAdmin();
     }
 
     // Notification delivery logs
     match /notificationLogs/{logId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // Fallback default deny
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -5,8 +5,7 @@
 
 import { INITIAL_SEED_VIDEOS } from './seed-data';
 import { VideoItem, SearchFilterParams, SearchResult, DONGHUA_GENRES, DONGHUA_ACCESS_TYPES } from './types';
-import { db } from './firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { fetchAllVideosFromFirebase } from './video-service';
 
 /**
  * Normalizes text for consistent token search
@@ -21,30 +20,16 @@ export function normalizeSearchTerm(str: string = ''): string {
 }
 
 /**
- * Fetch all available catalog videos (merging Firestore runtime videos + initial seed catalog)
+ * Fetch all available catalog videos (merging Realtime Database, Firestore, and initial seed catalog)
  */
 export async function getAllCatalogVideos(): Promise<VideoItem[]> {
-  const videoMap = new Map<string, VideoItem>();
-
-  // Add initial seed videos
-  for (const v of INITIAL_SEED_VIDEOS) {
-    videoMap.set(v.id, v);
-  }
-
-  // Fetch dynamic videos from Firestore
   try {
-    const vSnap = await getDocs(collection(db, 'videos'));
-    vSnap.forEach((d) => {
-      const v = { id: d.id, ...d.data() } as VideoItem;
-      if (v.published !== false) {
-        videoMap.set(v.id, v);
-      }
-    });
+    const list = await fetchAllVideosFromFirebase();
+    return list.filter((v) => v.published !== false && v.status !== 'draft');
   } catch (err) {
-    console.warn('Firestore video catalog read notice (using catalog cache):', err);
+    console.warn('Video catalog search fetch notice (using seed catalog):', err);
+    return INITIAL_SEED_VIDEOS.filter((v) => v.published !== false);
   }
-
-  return Array.from(videoMap.values());
 }
 
 /**

@@ -12,6 +12,12 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { UploadContentDashboard } from '@/components/UploadContentDashboard';
 import { AdminContentManagement } from '@/components/AdminContentManagement';
 import { AdminNotificationManager } from '@/components/AdminNotificationManager';
+import { AdminUserManager } from '@/components/AdminUserManager';
+import { AdminCommentModeration } from '@/components/AdminCommentModeration';
+import { AdminPollManager } from '@/components/AdminPollManager';
+import { AdminAnnouncementManager } from '@/components/AdminAnnouncementManager';
+import { AdminLiveManager } from '@/components/AdminLiveManager';
+import { AdminSuperChatManager } from '@/components/AdminSuperChatManager';
 import { DonghuaLogo } from '@/components/DonghuaLogo';
 import {
   ShieldCheck,
@@ -32,17 +38,23 @@ import {
   X,
   Sparkles,
   Bell,
+  MessageSquare,
+  Radio,
+  Megaphone,
+  Heart,
 } from 'lucide-react';
 
 type AdminTab =
   | 'dashboard'
+  | 'users'
   | 'videos'
   | 'upload'
+  | 'comments'
+  | 'polls'
+  | 'live'
+  | 'announcements'
+  | 'superchats'
   | 'notifications'
-  | 'users'
-  | 'subscriptions'
-  | 'payments'
-  | 'analytics'
   | 'settings';
 
 function AdminPageInner() {
@@ -142,11 +154,9 @@ function AdminPageInner() {
     }
 
     try {
-      // 1. Firebase Authentication sign-in
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const signedInUser = userCred.user;
 
-      // 2. Server-side authorization check
       const authCheckRes = await fetch('/api/admin/auth-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,20 +208,17 @@ function AdminPageInner() {
 
         <div className="flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
           <div className="w-full max-w-md bg-[#0f0f18] border border-[#2b2229] rounded-3xl p-6 sm:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.8)] relative overflow-hidden backdrop-blur-xl">
-            {/* Ambient Red & Gold Accents */}
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-600/15 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Header */}
             <div className="text-center space-y-2 mb-6">
               <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-950 via-[#260f15] to-[#1a110a] border border-red-700/50 flex items-center justify-center shadow-[0_0_20px_rgba(201,42,42,0.4)]">
                 <DonghuaLogo className="w-9 h-9" />
               </div>
               <h1 className="text-2xl font-black text-white tracking-wide font-serif">Admin Portal</h1>
-              <p className="text-xs text-gray-400">Sign in to manage Decent Animation content.</p>
+              <p className="text-xs text-gray-400">Sign in to manage Decent Animation content &amp; users.</p>
             </div>
 
-            {/* Error Message */}
             {loginError && (
               <div className="mb-5 p-3.5 rounded-xl bg-red-950/70 border border-red-700/60 text-red-200 text-xs flex items-start gap-2.5 animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
@@ -226,7 +233,6 @@ function AdminPageInner() {
               </div>
             )}
 
-            {/* Already logged in as non-admin warning */}
             {user && !effectiveIsAdmin && (
               <div className="mb-5 p-3.5 rounded-xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-start gap-2.5">
                 <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -234,7 +240,7 @@ function AdminPageInner() {
                   <div>
                     <p className="font-semibold">Access Denied</p>
                     <p className="text-[11px] text-gray-300">
-                      You are signed in as <span className="font-mono text-amber-300">{user.email}</span>, which lacks administrator clearance. Sign in with an authorized administrator account below.
+                      You are signed in as <span className="font-mono text-amber-300">{user.email}</span>, which lacks administrator clearance.
                     </p>
                   </div>
                   <button
@@ -251,7 +257,6 @@ function AdminPageInner() {
               </div>
             )}
 
-            {/* Primary Google Admin Sign In */}
             <div className="space-y-2 mb-5">
               <button
                 type="button"
@@ -292,11 +297,10 @@ function AdminPageInner() {
 
             <div className="flex items-center gap-3 my-3">
               <div className="flex-1 h-px bg-[#262638]" />
-              <span className="text-[10px] uppercase font-mono tracking-wider text-gray-500">or sign in with password</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-gray-500">or sign in with credentials</span>
               <div className="flex-1 h-px bg-[#262638]" />
             </div>
 
-            {/* Form */}
             <form onSubmit={handleAdminSignIn} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-gray-300">Email Address</label>
@@ -360,12 +364,6 @@ function AdminPageInner() {
                 </button>
               </div>
             </form>
-
-            <div className="mt-6 pt-4 border-t border-[#1c1c28] text-center">
-              <p className="text-[11px] text-gray-500 font-mono">
-                Decent Animation Core Protocol • Level 4 Clearance
-              </p>
-            </div>
           </div>
         </div>
 
@@ -390,7 +388,7 @@ function AdminPageInner() {
               <span className="text-amber-400 font-bold">• {user.email}</span>
             </div>
             <h1 className="text-3xl font-extrabold text-white font-serif tracking-wide mt-1">
-              Administrative Command
+              Administrative Command Center
             </h1>
           </div>
 
@@ -401,7 +399,7 @@ function AdminPageInner() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:brightness-110 text-white font-bold text-xs shadow-[0_0_20px_rgba(201,42,42,0.4)] transition-all transform hover:scale-[1.02]"
               >
                 <Plus className="w-4 h-4" />
-                <span>Upload New Content</span>
+                <span>Add Video (AVCaption)</span>
               </button>
             ) : (
               <button
@@ -409,7 +407,7 @@ function AdminPageInner() {
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#141420] hover:bg-[#1a1a28] text-gray-300 hover:text-white font-semibold text-xs border border-[#262638] transition-colors"
               >
                 <Video className="w-4 h-4 text-amber-400" />
-                <span>View All Content</span>
+                <span>Manage Videos</span>
               </button>
             )}
           </div>
@@ -418,14 +416,16 @@ function AdminPageInner() {
         {/* Navigation Tabs */}
         <div className="flex items-center space-x-1 overflow-x-auto pb-2 mb-8 no-scrollbar border-b border-[#1b1b28]">
           {[
-            { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-            { id: 'videos', label: 'Content Management', icon: Video },
-            { id: 'upload', label: 'Upload Content', icon: Upload },
+            { id: 'dashboard', label: 'Dashboard Overview', icon: BarChart3 },
+            { id: 'users', label: 'User & Subscriptions', icon: Users },
+            { id: 'videos', label: 'Manage Videos', icon: Video },
+            { id: 'upload', label: 'Add Video', icon: Upload },
+            { id: 'comments', label: 'Comment Moderation', icon: MessageSquare },
+            { id: 'polls', label: 'Community Polls', icon: BarChart3 },
+            { id: 'live', label: 'Live Broadcasts', icon: Radio },
+            { id: 'announcements', label: 'Announcements', icon: Megaphone },
+            { id: 'superchats', label: 'Super Chats', icon: Heart },
             { id: 'notifications', label: 'Email & Push Logs', icon: Bell },
-            { id: 'users', label: 'Users', icon: Users },
-            { id: 'subscriptions', label: 'Subscriptions', icon: ShieldCheck },
-            { id: 'payments', label: 'Payments', icon: CreditCard },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
             { id: 'settings', label: 'Ad & Platform Settings', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -452,10 +452,10 @@ function AdminPageInner() {
           <div className="space-y-8">
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Total Users', value: '14,820', change: '+18% this month' },
+                { label: 'Total Registered Cultivators', value: '14,820', change: '+18% this month' },
                 { label: 'Active Subscribers', value: '3,490', change: '+24% this month' },
                 { label: 'Monthly Revenue', value: '₹3,45,510', change: 'Razorpay Verified' },
-                { label: 'Storage Status', value: 'Google Cloud Storage', change: 'HLS & DASH Enabled' },
+                { label: 'Streaming Infrastructure', value: 'Google Cloud Storage', change: 'HLS & 4K Master Dubs' },
               ].map((stat, i) => (
                 <div key={i} className="p-5 rounded-2xl bg-[#0f0f18] border border-[#202032] space-y-1">
                   <p className="text-xs text-gray-400 font-medium">{stat.label}</p>
@@ -470,92 +470,109 @@ function AdminPageInner() {
               <div className="p-6 rounded-2xl bg-[#0f0f18] border border-[#202032] space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Video className="w-4 h-4 text-amber-400" />
-                    Donghua Video Vault
+                    <Users className="w-4 h-4 text-amber-400" />
+                    User &amp; Subscription Control
                   </h3>
                   <button
-                    onClick={() => setCurrentTab('upload')}
+                    onClick={() => setCurrentTab('users')}
                     className="text-xs text-amber-400 hover:underline font-semibold"
                   >
-                    + New Upload
+                    Open Manager →
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Decent Animation catalogue operates on secure role-based access control. All video streams are authenticated server-side before playback tokens are issued.
+                  Search user profiles by username, email, or user ID. Grant VIP/Premium plans, extend active subscriptions by days, or expire plans immediately.
                 </p>
                 <div className="pt-2 flex gap-3">
                   <button
-                    onClick={() => setCurrentTab('upload')}
+                    onClick={() => setCurrentTab('users')}
                     className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs"
                   >
-                    Upload Donghua Episode
+                    Manage Users &amp; Plans
                   </button>
                   <button
-                    onClick={() => setCurrentTab('videos')}
+                    onClick={() => setCurrentTab('comments')}
                     className="px-4 py-2 rounded-xl bg-[#181826] hover:bg-[#202032] text-gray-300 text-xs font-semibold"
                   >
-                    Manage Catalogue
+                    Moderate Comments
                   </button>
                 </div>
               </div>
 
               <div className="p-6 rounded-2xl bg-[#0f0f18] border border-[#202032] space-y-4">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-400" />
-                  Recent Razorpay Payment Webhooks
+                  <Heart className="w-4 h-4 text-pink-400" />
+                  Community &amp; Live Engagement
                 </h3>
-                <div className="space-y-2.5 text-xs">
-                  {[
-                    { user: 'cultivator_99@gmail.com', plan: 'VIP Yearly', amount: '₹999', status: 'Captured' },
-                    { user: 'rohit_donghua@gmail.com', plan: 'Premium Monthly', amount: '₹99', status: 'Captured' },
-                    { user: 'ananya_san@gmail.com', plan: 'Basic Quarterly', amount: '₹160', status: 'Captured' },
-                  ].map((p, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-[#141420] border border-[#1e1e2c]">
-                      <div>
-                        <p className="font-medium text-gray-200">{p.user}</p>
-                        <p className="text-[10px] text-gray-400">{p.plan}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono font-bold text-white">{p.amount}</p>
-                        <span className="text-[10px] text-emerald-400 font-bold">{p.status}</span>
-                      </div>
-                    </div>
-                  ))}
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Launch live broadcasts with synchronized chat, create community polls for upcoming Hindi dub releases, and review Super Chat supporter contributions.
+                </p>
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setCurrentTab('polls')}
+                    className="px-3 py-1.5 rounded-xl bg-[#181826] hover:bg-[#202032] text-amber-300 text-xs font-semibold border border-amber-500/30"
+                  >
+                    Create Poll
+                  </button>
+                  <button
+                    onClick={() => setCurrentTab('live')}
+                    className="px-3 py-1.5 rounded-xl bg-[#181826] hover:bg-[#202032] text-rose-300 text-xs font-semibold border border-rose-500/30"
+                  >
+                    Schedule Live
+                  </button>
+                  <button
+                    onClick={() => setCurrentTab('superchats')}
+                    className="px-3 py-1.5 rounded-xl bg-[#181826] hover:bg-[#202032] text-pink-300 text-xs font-semibold border border-pink-500/30"
+                  >
+                    Super Chat Revenue
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: MANAGE CONTENT (Section 14) */}
+        {/* TAB 2: USER & SUBSCRIPTION MANAGEMENT */}
+        {currentTab === 'users' && <AdminUserManager />}
+
+        {/* TAB 3: MANAGE CONTENT */}
         {currentTab === 'videos' && (
-          <AdminContentManagement
-            onOpenUpload={() => setCurrentTab('upload')}
-          />
+          <AdminContentManagement onOpenUpload={() => setCurrentTab('upload')} />
         )}
 
-        {/* TAB 3: MODERN DONGHUA-STYLE UPLOAD DASHBOARD */}
+        {/* TAB 4: MODERN DONGHUA-STYLE UPLOAD DASHBOARD */}
         {currentTab === 'upload' && (
           <UploadContentDashboard
-            onSuccess={() => {
-              setCurrentTab('videos');
-            }}
-            onCancel={() => {
-              setCurrentTab('videos');
-            }}
+            onSuccess={() => setCurrentTab('videos')}
+            onCancel={() => setCurrentTab('videos')}
           />
         )}
 
-        {/* TAB 4: CENTRALIZED EMAIL & NOTIFICATION AUDIT LOGS */}
+        {/* TAB 5: COMMENT MODERATION */}
+        {currentTab === 'comments' && <AdminCommentModeration />}
+
+        {/* TAB 6: COMMUNITY POLLS */}
+        {currentTab === 'polls' && <AdminPollManager />}
+
+        {/* TAB 7: LIVE BROADCASTS */}
+        {currentTab === 'live' && <AdminLiveManager />}
+
+        {/* TAB 8: ANNOUNCEMENTS */}
+        {currentTab === 'announcements' && <AdminAnnouncementManager />}
+
+        {/* TAB 9: SUPER CHATS */}
+        {currentTab === 'superchats' && <AdminSuperChatManager />}
+
+        {/* TAB 10: CENTRALIZED EMAIL & NOTIFICATION AUDIT LOGS */}
         {currentTab === 'notifications' && <AdminNotificationManager />}
 
-        {/* TAB 8: AD & PLATFORM SETTINGS */}
+        {/* TAB 11: AD & PLATFORM SETTINGS */}
         {currentTab === 'settings' && (
           <div className="max-w-2xl mx-auto p-6 sm:p-8 rounded-2xl bg-[#0f0f18] border border-[#202032] space-y-6">
             <div className="space-y-1">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Settings className="w-5 h-5 text-amber-400" />
-                Advertising & Streaming Architecture
+                Advertising &amp; Streaming Architecture
               </h2>
               <p className="text-xs text-gray-400">
                 Configure ads for Basic &amp; Free viewers. VIP Yearly subscribers (₹999/yr) are guaranteed 100% ad-free streaming.
@@ -620,22 +637,6 @@ function AdminPageInner() {
                 Save Settings
               </button>
             </div>
-          </div>
-        )}
-
-        {/* OTHER TABS (Users, Subscriptions, Payments, Analytics) */}
-        {(currentTab === 'users' ||
-          currentTab === 'subscriptions' ||
-          currentTab === 'payments' ||
-          currentTab === 'analytics') && (
-          <div className="p-6 rounded-2xl bg-[#0f0f18] border border-[#202032] text-center py-16 space-y-3">
-            <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
-            <h3 className="text-lg font-bold text-white capitalize">
-              Live Real-Time {currentTab} Registry
-            </h3>
-            <p className="text-xs text-gray-400 max-w-md mx-auto">
-              Real-time Firestore and Razorpay webhook synchronizer is active. All user subscription records are guarded under server-side authorization checks.
-            </p>
           </div>
         )}
       </main>

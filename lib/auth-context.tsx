@@ -11,20 +11,13 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 import { UserProfile, RequiredPlan, SubscriptionStatus } from './types';
 import { handleFirestoreError, OperationType } from './firestore-error';
+import { DESIGNATED_ADMIN_EMAILS, isDesignatedAdmin } from './admin-auth';
 
-export const DESIGNATED_ADMIN_EMAILS = [
-  'videocinema80@gmail.com',
-  'ranveerkrsingh165@gmail.com',
-];
-
-export function isDesignatedAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  return DESIGNATED_ADMIN_EMAILS.includes(email.toLowerCase().trim());
-}
+export { DESIGNATED_ADMIN_EMAILS, isDesignatedAdmin };
 
 export interface AuthUser {
   uid: string;
@@ -84,20 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Validate connection to Firestore on initial boot
-  useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.warn('Firebase client offline, awaiting reconnection.');
-        }
-      }
-    }
-    testConnection();
-  }, []);
-
   // Load user and sync Firestore document
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
@@ -120,8 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           let snap;
           try {
             snap = await getDoc(userRef);
-          } catch (fetchErr) {
-            handleFirestoreError(fetchErr, OperationType.GET, userDocPath);
+          } catch (fetchErr: any) {
+            console.warn('User profile fetch notice (operating with offline/cached state):', fetchErr?.message || fetchErr);
           }
 
           if (snap && snap.exists()) {
@@ -138,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               data.role = 'admin';
             }
             setProfile(data);
-          } else {
+          } else if (snap && !snap.exists()) {
             // Create initial user profile
             const newProfile: UserProfile = {
               uid: currentUser.uid,
@@ -152,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               await setDoc(userRef, newProfile);
             } catch (createErr) {
-              handleFirestoreError(createErr, OperationType.CREATE, userDocPath);
+              console.warn('Profile creation notice:', createErr);
             }
             setProfile(newProfile);
           }
@@ -170,12 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             },
             (snapshotError) => {
-              console.warn('Profile snapshot listener error:', snapshotError);
-              handleFirestoreError(snapshotError, OperationType.GET, userDocPath);
+              console.warn('Profile snapshot listener notice (offline / reconnecting):', snapshotError?.message || snapshotError);
             }
           );
-        } catch (err) {
-          console.error('Error in AuthProvider profile sync:', err);
+        } catch (err: any) {
+          console.warn('AuthProvider profile sync notice:', err?.message || err);
           // Set fallback profile from auth credentials
           setProfile({
             uid: currentUser.uid,
@@ -246,6 +224,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, newProfile, { merge: true });
+      await fetch('/api/user/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProfile),
+      });
     } catch (err) {
       console.warn('Firestore sync notice:', err);
     }
@@ -288,11 +271,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         subscriptionStatus: 'none',
         createdAt: new Date().toISOString(),
       };
+      
+      // Store in Firestore real-time database immediately
       try {
         await setDoc(doc(db, 'users', cred.user.uid), newProfile);
       } catch (err) {
         console.warn('Could not save user profile to Firestore:', err);
       }
+
+      // Also trigger robust API sync
+      try {
+        await fetch('/api/user/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProfile),
+        });
+      } catch (e) {
+        console.warn('API user sync notice:', e);
+      }
+
       setProfile(newProfile);
 
       // Trigger backend notification for new user registration
@@ -335,22 +332,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isUserDesignatedAdmin = isDesignatedAdmin(cred.user.email);
         const userDocRef = doc(db, 'users', cred.user.uid);
         const snap = await getDoc(userDocRef);
-        if (!snap.exists()) {
-          const newProfile: UserProfile = {
-            uid: cred.user.uid,
-            name: cred.user.displayName || cred.user.email?.split('@')[0] || 'Cultivator',
-            email: cred.user.email || '',
-            role: isUserDesignatedAdmin ? 'admin' : 'user',
-            subscriptionStatus: 'none',
-            createdAt: new Date().toISOString(),
-          };
-          try {
-            await setDoc(userDocRef, newProfile);
-          } catch (e) {
-            console.warn('Firestore Google user initial sync notice:', e);
-          }
-          setProfile(newProfile);
+        const newProfile: UserProfile = {
+          uid: cred.user.uid,
+          name: cred.user.displayName || cred.user.email?.split('@')[0] || 'Cultivator',
+          email: cred.user.email || '',
+          role: isUserDesignatedAdmin ? 'admin' : 'user',
+          subscriptionStatus: snap.exists() ? (snap.data() as UserProfile).subscriptionStatus || 'none' : 'none',
+          createdAt: snap.exists() ? (snap.data() as UserProfile).createdAt || new Date().toISOString() : new Date().toISOString(),
+        };
+
+        try {
+          await setDoc(userDocRef, newProfile, { merge: true });
+        } catch (e) {
+          console.warn('Firestore Google user sync notice:', e);
         }
+
+        try {
+          await fetch('/api/user/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newProfile),
+          });
+        } catch (e) {
+          // Non-blocking
+        }
+
+        setProfile(newProfile);
       }
     } catch (err: any) {
       console.warn('Firebase Google Sign-In caught error:', err);

@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
+import { getDatabase, Database } from 'firebase/database';
 import firebaseConfigJson from '../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -19,7 +20,33 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Initialize Cloud Firestore using the configured database ID as mandated by Firebase setup
-export const db = getFirestore(app, firebaseConfigJson.firestoreDatabaseId);
+// Initialize Cloud Firestore using the configured database ID as mandated by Firebase setup.
+// experimentalAutoDetectLongPolling provides resilience against stream disconnects and iframe firewall restrictions.
+function initFirestore() {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+      },
+      firebaseConfigJson.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfigJson.firestoreDatabaseId);
+  }
+}
+
+export const db = initFirestore();
+
+function initDatabase(): Database | null {
+  try {
+    return getDatabase(app);
+  } catch (e) {
+    console.warn('Realtime database init fallback notice:', e);
+    return null;
+  }
+}
+
+export const rtdb = initDatabase();
 
 export default app;

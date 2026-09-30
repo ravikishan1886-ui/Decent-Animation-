@@ -174,7 +174,7 @@ export default function SignupPage() {
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-300 uppercase mb-1">
-                Cultivator Name
+                Username
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -183,7 +183,7 @@ export default function SignupPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Xiao Yan"
+                  placeholder="Enter your username"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#181824] border border-[#2c2c3e] text-white text-sm focus:outline-none focus:border-amber-500 placeholder-gray-500"
                 />
               </div>

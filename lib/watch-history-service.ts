@@ -131,14 +131,25 @@ export async function getUserWatchHistory(
     allVideos.forEach((v) => videoMap.set(v.id, v));
 
     const historyRef = collection(db, 'watchHistory');
-    const q = query(
-      historyRef,
-      where('userId', '==', userId),
-      orderBy('lastWatchedAt', 'desc'),
-      firestoreLimit(maxItems)
-    );
+    let snap;
+    try {
+      const q = query(
+        historyRef,
+        where('userId', '==', userId),
+        orderBy('lastWatchedAt', 'desc'),
+        firestoreLimit(maxItems)
+      );
+      snap = await getDocs(q);
+    } catch {
+      // Fallback without orderBy in case composite index is not yet generated
+      const fallbackQ = query(
+        historyRef,
+        where('userId', '==', userId),
+        firestoreLimit(maxItems * 2)
+      );
+      snap = await getDocs(fallbackQ);
+    }
 
-    const snap = await getDocs(q);
     const results: WatchHistoryItem[] = [];
 
     snap.forEach((docSnap) => {
@@ -171,7 +182,11 @@ export async function getUserWatchHistory(
       });
     });
 
-    return results;
+    results.sort(
+      (a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime()
+    );
+
+    return results.slice(0, maxItems);
   } catch (err) {
     console.warn('Failed to fetch user watch history from Firestore:', err);
     return [];
