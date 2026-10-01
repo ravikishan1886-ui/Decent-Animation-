@@ -17,22 +17,24 @@ export async function GET(req: NextRequest) {
 
     let usersList: any[] = [];
 
-    try {
-      const usersRef = ref(rtdb, 'users');
-      const snap = await get(usersRef);
-      if (snap.exists()) {
-        const val = snap.val();
-        Object.keys(val).forEach((key) => {
-          const u = val[key];
-          usersList.push({
-            ...u,
-            uid: u.uid || key,
-            userId: u.userId || u.uid || key,
+    if (rtdb) {
+      try {
+        const usersRef = ref(rtdb, 'users');
+        const snap = await get(usersRef);
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((key) => {
+            const u = val[key];
+            usersList.push({
+              ...u,
+              uid: u.uid || key,
+              userId: u.userId || u.uid || key,
+            });
           });
-        });
+        }
+      } catch (err) {
+        console.warn('Realtime Database fetch users notice:', err);
       }
-    } catch (err) {
-      console.warn('Realtime Database fetch users notice:', err);
     }
 
     // Default designated admin if list is empty
@@ -128,6 +130,10 @@ export async function POST(req: NextRequest) {
 
     if (!targetId) {
       return NextResponse.json({ error: 'User ID is required.' }, { status: 400 });
+    }
+
+    if (!rtdb) {
+      return NextResponse.json({ error: 'Realtime database connection unavailable.' }, { status: 503 });
     }
 
     const userRef = ref(rtdb, `users/${targetId}`);
