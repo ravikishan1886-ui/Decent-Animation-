@@ -1,0 +1,7 @@
+# Cloudflare Pages Ignore
+.next/cache
+.next/cache/**
+cache
+cache/**
+*.pack
+*.pack.gz

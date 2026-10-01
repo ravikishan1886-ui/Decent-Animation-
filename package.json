@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "postbuild": "node -e \"const fs = require('fs'); try { fs.rmSync('.next/cache', { recursive: true, force: true }); fs.writeFileSync('.next/.pagesignore', 'cache/**\\n*.pack\\n*.pack.gz\\n'); } catch (e) {}\"",
     "start": "next start -p 3000",
     "lint": "next lint"
   },
