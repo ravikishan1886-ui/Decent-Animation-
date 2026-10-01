@@ -1,4 +1,19 @@
 import type {NextConfig} from 'next';
+import fs from 'fs';
+import path from 'path';
+
+// Clean up .next/cache on process exit during production builds
+// to ensure Cloudflare Pages asset validation (25 MiB file size limit) succeeds
+if (process.env.NODE_ENV === 'production') {
+  process.on('exit', () => {
+    try {
+      const cacheDir = path.join(process.cwd(), '.next', 'cache');
+      if (fs.existsSync(cacheDir)) {
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
+    } catch {}
+  });
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
