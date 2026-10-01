@@ -7,6 +7,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   updateProfile,
@@ -35,7 +37,8 @@ interface AuthContextType {
   isSubscriptionActive: boolean;
   signInEmail: (email: string, pass: string) => Promise<void>;
   signUpEmail: (name: string, email: string, pass: string) => Promise<void>;
-  signInGoogle: () => Promise<void>;
+  signInGoogle: (preferRedirect?: boolean) => Promise<void>;
+  signInGoogleRedirect: () => Promise<void>;
   signInDirect: (
     email: string,
     name?: string,
@@ -80,6 +83,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Load user and sync Firestore document
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
+
+    // Handle return from Google Redirect if triggered
+    getRedirectResult(auth)
+      .then(async (cred) => {
+        if (cred?.user) {
+          console.info('Successfully handled Google Redirect auth for:', cred.user.email);
+        }
+      })
+      .catch((redirectErr) => {
+        console.warn('Google redirect result notice:', redirectErr);
+      });
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       // Clean up any existing profile listener when auth state changes
@@ -324,43 +338,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInGoogle = async () => {
+  const syncGoogleUser = async (credUser: User) => {
+    const isUserDesignatedAdmin = isDesignatedAdmin(credUser.email);
+    const userDocRef = doc(db, 'users', credUser.uid);
+    let snap;
+    try {
+      snap = await getDoc(userDocRef);
+    } catch (e) {
+      console.warn('Google user fetch notice:', e);
+    }
+    const newProfile: UserProfile = {
+      uid: credUser.uid,
+      name: credUser.displayName || credUser.email?.split('@')[0] || 'Cultivator',
+      email: credUser.email || '',
+      role: isUserDesignatedAdmin ? 'admin' : 'user',
+      subscriptionStatus: snap && snap.exists() ? (snap.data() as UserProfile).subscriptionStatus || 'none' : 'none',
+      createdAt: snap && snap.exists() ? (snap.data() as UserProfile).createdAt || new Date().toISOString() : new Date().toISOString(),
+    };
+
+    try {
+      await setDoc(userDocRef, newProfile, { merge: true });
+    } catch (e) {
+      console.warn('Firestore Google user sync notice:', e);
+    }
+
+    try {
+      await fetch('/api/user/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProfile),
+      });
+    } catch (e) {
+      // Non-blocking
+    }
+
+    setProfile(newProfile);
+  };
+
+  const signInGoogle = async (preferRedirect = false) => {
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
-      const cred = await signInWithPopup(auth, googleProvider);
-      if (cred.user) {
-        const isUserDesignatedAdmin = isDesignatedAdmin(cred.user.email);
-        const userDocRef = doc(db, 'users', cred.user.uid);
-        const snap = await getDoc(userDocRef);
-        const newProfile: UserProfile = {
-          uid: cred.user.uid,
-          name: cred.user.displayName || cred.user.email?.split('@')[0] || 'Cultivator',
-          email: cred.user.email || '',
-          role: isUserDesignatedAdmin ? 'admin' : 'user',
-          subscriptionStatus: snap.exists() ? (snap.data() as UserProfile).subscriptionStatus || 'none' : 'none',
-          createdAt: snap.exists() ? (snap.data() as UserProfile).createdAt || new Date().toISOString() : new Date().toISOString(),
-        };
+      if (preferRedirect) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
 
-        try {
-          await setDoc(userDocRef, newProfile, { merge: true });
-        } catch (e) {
-          console.warn('Firestore Google user sync notice:', e);
+      let cred;
+      try {
+        cred = await signInWithPopup(auth, googleProvider);
+      } catch (popupErr: any) {
+        // If popup is blocked by the browser or iframes, automatically fall back to redirect
+        if (popupErr.code === 'auth/popup-blocked') {
+          console.info('Popup blocked by browser, attempting signInWithRedirect fallback');
+          await signInWithRedirect(auth, googleProvider);
+          return;
         }
+        throw popupErr;
+      }
 
-        try {
-          await fetch('/api/user/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newProfile),
-          });
-        } catch (e) {
-          // Non-blocking
-        }
-
-        setProfile(newProfile);
+      if (cred && cred.user) {
+        await syncGoogleUser(cred.user);
       }
     } catch (err: any) {
       console.warn('Firebase Google Sign-In caught error:', err);
+      throw err;
+    }
+  };
+
+  const signInGoogleRedirect = async () => {
+    try {
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithRedirect(auth, googleProvider);
+    } catch (err: any) {
+      console.warn('Firebase Google Redirect caught error:', err);
       throw err;
     }
   };
@@ -548,6 +598,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInEmail,
         signUpEmail,
         signInGoogle,
+        signInGoogleRedirect,
         signInDirect,
         signOut,
         resetPassword,

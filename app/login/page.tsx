@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showGoogleFallback, setShowGoogleFallback] = useState(false);
 
-  const { signInEmail, signInGoogle, signInDirect } = useAuth();
+  const { signInEmail, signInGoogle, signInGoogleRedirect, signInDirect } = useAuth();
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,31 +39,35 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (useRedirect = false) => {
     setError(null);
     setLoading(true);
     setShowGoogleFallback(false);
     try {
+      if (useRedirect) {
+        await signInGoogleRedirect();
+        return;
+      }
       await signInGoogle();
       router.push('/dashboard');
     } catch (err: any) {
       console.warn('Google login error:', err);
-      const isConfigOrDomain =
-        err.code === 'auth/configuration-not-found' ||
-        err.code === 'auth/unauthorized-domain' ||
-        err.code === 'auth/operation-not-allowed' ||
-        err.code === 'auth/popup-blocked' ||
-        err.code === 'auth/popup-closed-by-user' ||
-        err.message?.includes('configuration-not-found') ||
-        err.message?.includes('unauthorized-domain');
-
-      if (isConfigOrDomain) {
-        setShowGoogleFallback(true);
+      setShowGoogleFallback(true);
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'your domain';
+      if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
         setError(
-          'Google popup could not finish in the current browser/iframe context (e.g. popups blocked or domain authorization needed in Firebase Console). You can continue with 1-Click Access below!'
+          `Domain "${host}" is not authorized in Firebase. To fix: Open Firebase Console > Authentication > Settings > Authorized domains > Add "${host}". Or click 1-Click Access below!`
         );
+      } else if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
+        setError(
+          'Google Sign-in is not enabled in Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Google -> Enable. Or use 1-Click Access below.'
+        );
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup was blocked by your browser. Click "Sign In with Redirect" below or use 1-Click Access.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('The Google sign-in popup was closed before completing. Please try again or use 1-Click Access.');
       } else {
-        setError(err.message || 'Google authentication failed');
+        setError(err.message || 'Google authentication failed. You can use 1-Click Access below.');
       }
     } finally {
       setLoading(false);
@@ -138,8 +142,19 @@ export default function LoginPage() {
 
             {showGoogleFallback && (
               <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-2">
-                <p className="font-semibold text-amber-300">Choose Instant Access:</p>
+                <p className="font-semibold text-amber-300">Alternative Sign-in Options:</p>
                 <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleGoogleLogin(true)}
+                    className="w-full text-left px-3 py-2 rounded-lg bg-[#181824] hover:bg-[#202030] text-sky-300 font-semibold text-xs border border-sky-500/30 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                      Try Google with Full-Page Redirect
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleQuickLogin('videocinema80@gmail.com', 'Admin User', 'admin')}
@@ -147,7 +162,7 @@ export default function LoginPage() {
                   >
                     <span className="flex items-center gap-2">
                       <Shield className="w-3.5 h-3.5 text-amber-400" />
-                      Sign in as videocinema80@gmail.com (Admin)
+                      Instant Sign-in as videocinema80@gmail.com (Admin)
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
