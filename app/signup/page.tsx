@@ -122,7 +122,7 @@ export default function SignupPage() {
           {/* Google Signup */}
           <div className="space-y-2 mb-5">
             <button
-              onClick={handleGoogleSignup}
+              onClick={() => handleGoogleSignup()}
               disabled={loading}
               type="button"
               className="w-full py-3 rounded-xl bg-[#181824] hover:bg-[#202030] border border-[#2d2d40] text-gray-100 text-xs font-bold flex items-center justify-center gap-2.5 transition-all shadow-md disabled:opacity-60"

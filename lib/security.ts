@@ -26,7 +26,7 @@ export function verifyRazorpaySignature(
 
 // Check if user has permission to watch a video based on subscription tier
 export function checkVideoAccess(
-  videoAccessType: 'free' | 'subscription' | 'exclusive' | 'vip',
+  videoAccessType: 'free' | 'subscription' | 'basic' | 'exclusive' | 'premium' | 'vip',
   userPlanTier: 'none' | 'basic' | 'premium' | 'vip',
   isSubscriptionActive: boolean,
   isAdmin: boolean = false
@@ -43,23 +43,30 @@ export function checkVideoAccess(
     return {
       hasAccess: false,
       reason: 'Active subscription required',
-      requiredTier: videoAccessType === 'vip' ? 'vip' : videoAccessType === 'exclusive' ? 'premium' : 'basic',
+      requiredTier: videoAccessType === 'vip' ? 'vip' : (videoAccessType === 'exclusive' || videoAccessType === 'premium') ? 'premium' : 'basic',
     };
   }
 
-  if (videoAccessType === 'subscription') {
+  if (videoAccessType === 'subscription' || videoAccessType === 'basic') {
     // basic, premium, vip can watch
-    return { hasAccess: true };
+    if (userPlanTier === 'basic' || userPlanTier === 'premium' || userPlanTier === 'vip') {
+      return { hasAccess: true };
+    }
+    return {
+      hasAccess: false,
+      reason: 'Active Basic, Premium, or VIP plan required',
+      requiredTier: 'basic',
+    };
   }
 
-  if (videoAccessType === 'exclusive') {
+  if (videoAccessType === 'exclusive' || videoAccessType === 'premium') {
     // premium or vip can watch
     if (userPlanTier === 'premium' || userPlanTier === 'vip') {
       return { hasAccess: true };
     }
     return {
       hasAccess: false,
-      reason: 'Requires Premium or VIP plan to watch this exclusive episode',
+      reason: 'Upgrade to Premium or VIP to watch this episode.',
       requiredTier: 'premium',
     };
   }
@@ -70,7 +77,7 @@ export function checkVideoAccess(
     }
     return {
       hasAccess: false,
-      reason: 'Requires VIP Yearly membership for early-access VIP episodes',
+      reason: 'This episode is available to VIP members.',
       requiredTier: 'vip',
     };
   }

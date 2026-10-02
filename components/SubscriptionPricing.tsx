@@ -89,8 +89,28 @@ export function SubscriptionPricing({ onSuccess }: SubscriptionPricingProps) {
         </div>
       </div>
 
+      {/* Free Tier Info Bar / Card */}
+      <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-[#0f0f18] border border-[#222234] flex flex-col sm:flex-row items-center justify-between gap-4 max-w-6xl mx-auto">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gray-800/80 border border-gray-700 flex items-center justify-center shrink-0">
+            <span className="text-gray-300 font-bold text-xs uppercase">FREE</span>
+          </div>
+          <div>
+            <h4 className="text-white font-bold text-sm">Free Plan (₹0 / Free Forever)</h4>
+            <p className="text-xs text-gray-400">
+              Access to free public episodes with standard streaming &amp; ads. No downloads or exclusive VIP releases.
+            </p>
+          </div>
+        </div>
+        {(!profile?.planId || profile?.subscriptionStatus === 'none' || profile?.subscriptionStatus === 'expired') && (
+          <span className="px-3.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-xs font-semibold shrink-0">
+            Your Current Default Plan
+          </span>
+        )}
+      </div>
+
       {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
         {filteredPlans.map((plan) => {
           const isCurrent = profile?.planId === plan.id && isSubscriptionActive;
           const isVip = plan.tier === 'vip';

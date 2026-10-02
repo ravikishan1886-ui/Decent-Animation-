@@ -341,27 +341,69 @@ export function AdminUserManager() {
                   onChange={(e) => setSelectedPlan(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white"
                 >
-                  <option value="basic-monthly">₹59 Monthly (Basic Tier)</option>
-                  <option value="premium-monthly">₹99 Monthly (Premium Tier)</option>
-                  <option value="basic-quarterly">₹160 Quarterly (Basic Tier)</option>
-                  <option value="premium-quarterly">₹459 Quarterly (Premium Tier)</option>
-                  <option value="premium-yearly">₹599 Yearly (Premium Tier)</option>
-                  <option value="vip-yearly">₹999 VIP Yearly (VIP Tier)</option>
+                  <option value="free">Free Tier (₹0)</option>
+                  <option value="basic-monthly">Basic Monthly (₹59/mo)</option>
+                  <option value="basic-quarterly">Basic Quarterly (₹159/3mo)</option>
+                  <option value="basic-yearly">Basic Yearly (₹549/yr)</option>
+                  <option value="premium-monthly">Premium Monthly (₹99/mo - Popular)</option>
+                  <option value="premium-quarterly">Premium Quarterly (₹269/3mo)</option>
+                  <option value="premium-yearly">Premium Yearly (₹899/yr)</option>
+                  <option value="vip-monthly">VIP Monthly (₹149/mo)</option>
+                  <option value="vip-quarterly">VIP Quarterly (₹399/3mo)</option>
+                  <option value="vip-yearly">VIP Yearly (₹1,299/yr)</option>
                 </select>
               </div>
             )}
 
             {(actionType === 'EXTEND_DAYS' || actionType === 'EXTEND_PLAN') && (
               <div className="space-y-3">
-                <label className="text-xs text-gray-300 block">Number of Days to Extend:</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={extendDays}
-                  onChange={(e) => setExtendDays(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white font-mono"
-                />
+                <label className="text-xs text-gray-300 block font-semibold">Extend Plan Duration:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtendDays(30)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      extendDays === 30
+                        ? 'bg-amber-500 text-black border-amber-400'
+                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
+                    }`}
+                  >
+                    +30 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtendDays(90)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      extendDays === 90
+                        ? 'bg-amber-500 text-black border-amber-400'
+                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
+                    }`}
+                  >
+                    +90 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtendDays(365)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      extendDays === 365
+                        ? 'bg-amber-500 text-black border-amber-400'
+                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
+                    }`}
+                  >
+                    +365 Days
+                  </button>
+                </div>
+                <div className="pt-1">
+                  <label className="text-[11px] text-gray-400 block mb-1">Custom Days:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={extendDays}
+                    onChange={(e) => setExtendDays(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white font-mono"
+                  />
+                </div>
               </div>
             )}
 

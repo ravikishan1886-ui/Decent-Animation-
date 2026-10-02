@@ -119,6 +119,11 @@ export function AdminVideoForm({
     }
   };
 
+  const [adsAllowed, setAdsAllowed] = useState<boolean>(initialVideo?.adsAllowed !== false);
+  const [downloadAllowed, setDownloadAllowed] = useState<boolean>(initialVideo?.downloadAllowed !== false);
+  const [earlyAccess, setEarlyAccess] = useState<boolean>(Boolean(initialVideo?.isNewEpisode || (initialVideo as any)?.earlyAccess));
+  const [exclusive, setExclusive] = useState<boolean>(Boolean((initialVideo as any)?.exclusive || initialVideo?.accessType === 'exclusive'));
+
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +147,7 @@ export function AdminVideoForm({
 
     setIsSubmitting(true);
 
-    const payload: Partial<VideoItem> = {
+    const payload: Partial<VideoItem> & Record<string, any> = {
       id: initialVideo?.id,
       title: title.trim(),
       seriesName: seriesName.trim(),
@@ -170,6 +175,14 @@ export function AdminVideoForm({
       releaseDate: releaseDate || new Date().toISOString().split('T')[0],
       published: isPublished,
       status: isPublished ? 'published' : 'draft',
+      adsAllowed,
+      adsEnabled: adsAllowed,
+      downloadAllowed,
+      downloadEnabled: downloadAllowed,
+      earlyAccess,
+      isNewEpisode: earlyAccess,
+      exclusive,
+      exclusiveAccess: exclusive,
     };
 
     try {
@@ -559,32 +572,60 @@ export function AdminVideoForm({
             </button>
           </div>
 
-          {/* Required Plan Selection when Paid */}
-          {accessType !== 'free' && (
-            <div className="space-y-1.5 pt-2 border-t border-[#232338]">
-              <label className="text-[11px] font-bold text-amber-300 uppercase">
-                Choose Required Subscription Plan:
-              </label>
-              <select
-                value={requiredPlan}
-                onChange={(e) => setRequiredPlan(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0e0e18] border border-[#2b2b40] text-white text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-400"
-              >
-                <optgroup label="Tier Access">
-                  <option value="basic">Basic Tier (₹59 / month &amp; above)</option>
-                  <option value="premium">Premium Tier (₹99 / month &amp; above)</option>
-                  <option value="vip">VIP Tier (₹999 / year exclusive)</option>
-                </optgroup>
-                <optgroup label="Specific Plan Assignment">
-                  {SUBSCRIPTION_PLANS.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      {plan.name} — ₹{plan.price} {plan.durationLabel} ({plan.tier.toUpperCase()})
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
-          )}
+          {/* Feature Flags: Ads, Download, Early Access, Exclusive */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[#232338]">
+            <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
+              <span className="text-xs font-semibold text-gray-300">Ads</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${adsAllowed ? 'bg-amber-950 text-amber-300 border border-amber-600' : 'bg-gray-800 text-gray-400'}`}>
+                {adsAllowed ? 'ON' : 'OFF'}
+              </span>
+              <input
+                type="checkbox"
+                checked={adsAllowed}
+                onChange={(e) => setAdsAllowed(e.target.checked)}
+                className="sr-only"
+              />
+            </label>
+
+            <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
+              <span className="text-xs font-semibold text-gray-300">Download</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${downloadAllowed ? 'bg-emerald-950 text-emerald-300 border border-emerald-600' : 'bg-gray-800 text-gray-400'}`}>
+                {downloadAllowed ? 'ON' : 'OFF'}
+              </span>
+              <input
+                type="checkbox"
+                checked={downloadAllowed}
+                onChange={(e) => setDownloadAllowed(e.target.checked)}
+                className="sr-only"
+              />
+            </label>
+
+            <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
+              <span className="text-xs font-semibold text-gray-300">Early Access</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${earlyAccess ? 'bg-purple-950 text-purple-300 border border-purple-600' : 'bg-gray-800 text-gray-400'}`}>
+                {earlyAccess ? 'ON' : 'OFF'}
+              </span>
+              <input
+                type="checkbox"
+                checked={earlyAccess}
+                onChange={(e) => setEarlyAccess(e.target.checked)}
+                className="sr-only"
+              />
+            </label>
+
+            <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
+              <span className="text-xs font-semibold text-gray-300">Exclusive</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${exclusive ? 'bg-rose-950 text-rose-300 border border-rose-600' : 'bg-gray-800 text-gray-400'}`}>
+                {exclusive ? 'ON' : 'OFF'}
+              </span>
+              <input
+                type="checkbox"
+                checked={exclusive}
+                onChange={(e) => setExclusive(e.target.checked)}
+                className="sr-only"
+              />
+            </label>
+          </div>
         </div>
 
         {/* SECTION 4: THUMBNAIL URL */}

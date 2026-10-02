@@ -349,21 +349,40 @@ export default function WatchPage() {
             /* Subscription Locked Paywall Screen (AVCaption Embed URL is Protected) */
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-black via-[#0d0d16] to-[#12121e] p-6 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-red-950/60 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_30px_rgba(212,175,55,0.25)]">
-                <Lock className="w-8 h-8" />
+                {requiredTier === 'vip' || video.accessType === 'vip' ? (
+                  <Crown className="w-8 h-8 text-amber-400" />
+                ) : (
+                  <Lock className="w-8 h-8 text-amber-400" />
+                )}
               </div>
 
               <div className="max-w-md space-y-2">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold uppercase tracking-wider">
-                  <Crown className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{video.accessType.toUpperCase()} TIER REQUIRED</span>
+                  {requiredTier === 'vip' || video.accessType === 'vip' ? (
+                    <>
+                      <Crown className="w-3.5 h-3.5 text-amber-400" />
+                      <span>👑 VIP Content</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>🔒 Premium Content</span>
+                    </>
+                  )}
                 </div>
 
                 <h2 className="text-xl sm:text-2xl font-black text-white">
-                  Exclusive Cultivator Episode
+                  {requiredTier === 'vip' || video.accessType === 'vip'
+                    ? '👑 VIP Content'
+                    : '🔒 Premium Content'}
                 </h2>
 
                 <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-                  {denyReason || 'This episode is reserved for active subscribers. Unlock unlimited 4K Donghua, Hindi dubs, and VIP releases.'}
+                  {requiredTier === 'vip' || video.accessType === 'vip'
+                    ? 'This episode is available to VIP members.'
+                    : subscriptionTier === 'basic'
+                    ? 'Upgrade to Premium or VIP to watch this episode.'
+                    : 'This episode requires a Premium or VIP subscription.'}
                 </p>
               </div>
 
@@ -373,7 +392,13 @@ export default function WatchPage() {
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:brightness-110 active:scale-98 text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-900/40 flex items-center gap-2 transition-all"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Unlock with Plan (Starts at ₹59)</span>
+                  <span>
+                    {requiredTier === 'vip' || video.accessType === 'vip'
+                      ? 'Upgrade to VIP'
+                      : subscriptionTier === 'basic'
+                      ? 'Upgrade'
+                      : 'View Plans'}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 
