@@ -60,26 +60,35 @@ export default function SignupPage() {
         await signInGoogleRedirect();
         return;
       }
-      await signInGoogle();
-      router.push('/dashboard');
+      try {
+        await signInGoogle();
+        router.push('/dashboard');
+      } catch (popupErr: any) {
+        console.warn('Google popup error on signup, trying redirect fallback:', popupErr);
+        if (
+          popupErr.code === 'auth/popup-blocked' ||
+          popupErr.code === 'auth/popup-closed-by-user' ||
+          popupErr.message?.includes('popup')
+        ) {
+          await signInGoogleRedirect();
+          return;
+        }
+        throw popupErr;
+      }
     } catch (err: any) {
       console.warn('Google signup error:', err);
       setShowGoogleFallback(true);
       const host = typeof window !== 'undefined' ? window.location.hostname : 'your domain';
       if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
         setError(
-          `Domain "${host}" is not authorized in Firebase. To fix: Open Firebase Console > Authentication > Settings > Authorized domains > Add "${host}". Or click Instant Cultivator Account below!`
+          `Domain "${host}" is not authorized in Firebase Console yet. To fix: Open Firebase Console > Authentication > Settings > Authorized domains > Add "${host}". Or register with email below.`
         );
       } else if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
         setError(
-          'Google Sign-in is not enabled in Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Google -> Enable. Or use Instant Registration below.'
+          'Google Sign-in is not enabled in Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Google -> Enable.'
         );
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Click "Sign Up with Redirect" below or use Instant Registration.');
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        setError('The Google sign-in popup was closed before completing. Please try again or use Instant Registration.');
       } else {
-        setError(err.message || 'Google signup failed. You can use Instant Registration below.');
+        setError(err.message || 'Google signup failed. Please try again or register with email below.');
       }
     } finally {
       setLoading(false);
@@ -162,17 +171,6 @@ export default function SignupPage() {
                       Try Google with Full-Page Redirect
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickRegister(email || 'cultivator@decent.app', name || 'Cultivator')}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-[#181824] hover:bg-[#202030] text-gray-200 font-semibold text-xs border border-[#2d2d40] flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      Instant Cultivator Account ({name || 'New Cultivator'})
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
                   </button>
                 </div>
               </div>

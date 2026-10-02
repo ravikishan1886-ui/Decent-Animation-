@@ -48,26 +48,36 @@ export default function LoginPage() {
         await signInGoogleRedirect();
         return;
       }
-      await signInGoogle();
-      router.push('/dashboard');
+      try {
+        await signInGoogle();
+        router.push('/dashboard');
+      } catch (popupErr: any) {
+        console.warn('Google popup error, trying redirect fallback:', popupErr);
+        // Automatically try full-page redirect if popup was blocked by browser/mobile
+        if (
+          popupErr.code === 'auth/popup-blocked' ||
+          popupErr.code === 'auth/popup-closed-by-user' ||
+          popupErr.message?.includes('popup')
+        ) {
+          await signInGoogleRedirect();
+          return;
+        }
+        throw popupErr;
+      }
     } catch (err: any) {
       console.warn('Google login error:', err);
       setShowGoogleFallback(true);
       const host = typeof window !== 'undefined' ? window.location.hostname : 'your domain';
       if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
         setError(
-          `Domain "${host}" is not authorized in Firebase. To fix: Open Firebase Console > Authentication > Settings > Authorized domains > Add "${host}". Or click 1-Click Access below!`
+          `Domain "${host}" is not authorized in Firebase Console yet. To fix: Open Firebase Console > Authentication > Settings > Authorized domains > Add "${host}". Or sign in with email below.`
         );
       } else if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
         setError(
-          'Google Sign-in is not enabled in Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Google -> Enable. Or use 1-Click Access below.'
+          'Google Sign-in is not enabled in Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Google -> Enable.'
         );
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Click "Sign In with Redirect" below or use 1-Click Access.');
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        setError('The Google sign-in popup was closed before completing. Please try again or use 1-Click Access.');
       } else {
-        setError(err.message || 'Google authentication failed. You can use 1-Click Access below.');
+        setError(err.message || 'Google authentication failed. Please try again or sign in with email.');
       }
     } finally {
       setLoading(false);
@@ -142,7 +152,7 @@ export default function LoginPage() {
 
             {showGoogleFallback && (
               <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-2">
-                <p className="font-semibold text-amber-300">Alternative Sign-in Options:</p>
+                <p className="font-semibold text-amber-300">Alternative Options:</p>
                 <div className="grid grid-cols-1 gap-1.5">
                   <button
                     type="button"
@@ -154,28 +164,6 @@ export default function LoginPage() {
                       Try Google with Full-Page Redirect
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('videocinema80@gmail.com', 'Admin User', 'admin')}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-[#181824] hover:bg-[#202030] text-amber-300 font-semibold text-xs border border-amber-500/30 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Shield className="w-3.5 h-3.5 text-amber-400" />
-                      Instant Sign-in as videocinema80@gmail.com (Admin)
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('cultivator@decent.app', 'Cultivator', 'user')}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-[#181824] hover:bg-[#202030] text-gray-200 font-semibold text-xs border border-[#2d2d40] flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-gray-400" />
-                      Continue as Member (cultivator@decent.app)
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
                   </button>
                 </div>
               </div>
@@ -242,32 +230,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access Bar */}
-          <div className="mt-6 pt-4 border-t border-[#1e1e2d] space-y-2">
-            <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 text-center flex items-center justify-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Instant 1-Click Sign-In</span>
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('videocinema80@gmail.com', 'Admin User', 'admin')}
-                className="py-2 px-2.5 rounded-xl bg-[#181824] hover:bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">Admin Account</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('member@cultivator.com', 'Cultivator Member', 'user', 'vip')}
-                className="py-2 px-2.5 rounded-xl bg-[#181824] hover:bg-purple-950/40 border border-purple-500/30 text-purple-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <span className="truncate">VIP Cultivator</span>
-              </button>
-            </div>
-          </div>
 
           <p className="mt-5 text-center text-xs text-gray-400">
             Don&apos;t have an account?{' '}
