@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from '
 import { rtdb, db } from './firebase';
 import { VideoItem, AccessType, RequiredPlan, ContentType, PublishingStatus } from './types';
 import { INITIAL_SEED_VIDEOS } from './seed-data';
+import { deleteStorageFile } from './storage-service';
 
 export interface SeriesGroup {
   seriesId: string;
@@ -18,39 +19,79 @@ export interface SeriesGroup {
  * Creates a URL/key-safe series slug
  */
 export function slugifySeries(name: string): string {
-  return (name || 'uncategorized')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'series';
+  return (
+    (name || 'uncategorized')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'series'
+  );
 }
 
 /**
- * Validates AVCaption embed URL
+ * Validates a video stream URL or AVCaption embed URL
  */
-export function validateAvCaptionEmbedUrl(url?: string): { valid: boolean; error?: string } {
+export function validateVideoUrl(url?: string): { valid: boolean; error?: string } {
   if (!url || typeof url !== 'string' || !url.trim()) {
-    return { valid: false, error: 'AVCaption embed URL is required.' };
+    return { valid: false, error: 'A valid video file URL or embed URL is required.' };
   }
   const clean = url.trim();
-  if (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('//')) {
-    return { valid: false, error: 'Embed URL must begin with https:// or http://' };
+  if (
+    !clean.startsWith('http://') &&
+    !clean.startsWith('https://') &&
+    !clean.startsWith('/') &&
+    !clean.startsWith('//')
+  ) {
+    return { valid: false, error: 'Video URL must begin with https://, http://, or /api/media' };
   }
   return { valid: true };
 }
+
+export const validateAvCaptionEmbedUrl = validateVideoUrl;
 
 /**
  * Normalizes a raw video record into a typed VideoItem
  */
 export function normalizeVideoItem(raw: any, fallbackId?: string): VideoItem {
   const id = raw.id || raw.videoId || fallbackId || `vid_${Date.now()}`;
-  const seriesName = (raw.seriesName || raw.donghuaName || raw.series || 'Decent Animation Series').trim();
+  const seriesName = (
+    raw.seriesName ||
+    raw.donghuaName ||
+    raw.series ||
+    'Decent Animation Series'
+  ).trim();
   const seriesId = raw.seriesId || slugifySeries(seriesName);
   const title = (raw.title || `${seriesName} Episode ${raw.episodeNumber || 1}`).trim();
-  const embedUrl = raw.embedUrl || raw.avcaptionUrl || raw.videoStreamUrl || '';
-  const videoUrl = raw.videoUrl || raw.videoStreamUrl || embedUrl;
-  const accessType: AccessType = raw.accessType === 'free' ? 'free' : raw.accessType === 'vip' ? 'vip' : raw.accessType === 'exclusive' ? 'exclusive' : 'subscription';
-  const requiredPlan: RequiredPlan | string = raw.requiredPlan || (accessType === 'free' ? 'free' : accessType === 'vip' ? 'vip' : 'basic');
+
+  const rawVideoUrl = (raw.videoUrl || raw.videoStreamUrl || '').trim();
+  const rawEmbedUrl = (raw.embedUrl || raw.avcaptionUrl || '').trim();
+
+  // Distinguish between direct storage / local uploaded video and external embed sources
+  const isUploadedVideo = Boolean(
+    raw.videoStoragePath ||
+      rawVideoUrl.includes('/api/media/') ||
+      rawVideoUrl.includes('/uploads/') ||
+      rawVideoUrl.includes('firebasestorage.googleapis.com') ||
+      raw.videoSource === 'firebase' ||
+      raw.videoSource === 'upload'
+  );
+
+  const videoSource: 'firebase' | 'external' =
+    raw.videoSource || (isUploadedVideo ? 'firebase' : rawEmbedUrl ? 'external' : 'firebase');
+
+  const videoUrl = rawVideoUrl || rawEmbedUrl;
+  const embedUrl = rawEmbedUrl || rawVideoUrl;
+  const accessType: AccessType =
+    raw.accessType === 'free'
+      ? 'free'
+      : raw.accessType === 'vip'
+      ? 'vip'
+      : raw.accessType === 'exclusive'
+      ? 'exclusive'
+      : 'subscription';
+
+  const requiredPlan: RequiredPlan | string =
+    raw.requiredPlan || (accessType === 'free' ? 'free' : accessType === 'vip' ? 'vip' : 'basic');
   const episodeNumber = Math.max(1, Number(raw.episodeNumber) || 1);
   const seasonNumber = Math.max(1, Number(raw.seasonNumber) || 1);
   const published = raw.published !== undefined ? Boolean(raw.published) : raw.status !== 'draft';
@@ -68,45 +109,69 @@ export function normalizeVideoItem(raw: any, fallbackId?: string): VideoItem {
     videoType: (raw.videoType as any) || (raw.contentType as any) || 'episode',
     episodeNumber,
     seasonNumber,
-    thumbnailUrl: raw.thumbnailUrl || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1000&auto=format&fit=crop&q=80',
+    thumbnailUrl:
+      raw.thumbnailUrl ||
+      'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1000&auto=format&fit=crop&q=80',
     posterUrl: raw.posterUrl || raw.thumbnailUrl,
+    videoSource,
     embedUrl,
     videoUrl,
     avcaptionUrl: embedUrl,
-    videoStreamUrl: videoUrl || embedUrl,
+    videoStreamUrl: videoUrl,
+    videoStoragePath: raw.videoStoragePath || undefined,
+    thumbnailStoragePath: raw.thumbnailStoragePath || undefined,
+    fileName: raw.fileName || undefined,
+    fileSize: raw.fileSize || undefined,
     accessType,
     requiredPlan,
     duration: raw.duration || '22:30',
     category: raw.genre || raw.category || 'Cultivation',
     genre: raw.genre || raw.category || 'Cultivation',
-    genres: Array.isArray(raw.genres) && raw.genres.length > 0 ? raw.genres : [raw.genre || 'Cultivation'],
+    genres:
+      Array.isArray(raw.genres) && raw.genres.length > 0
+        ? raw.genres
+        : [raw.genre || 'Cultivation'],
     language: raw.language || 'Hindi Dubbed',
     audio: raw.audio || raw.language || 'Hindi Dubbed',
     subtitles: raw.subtitles || 'Hindi, English',
     tags: Array.isArray(raw.tags) ? raw.tags : [seriesName, raw.genre || 'Cultivation'],
     published,
     status,
-    releaseDate: raw.releaseDate || (raw.createdAt ? String(raw.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]),
+    releaseDate:
+      raw.releaseDate ||
+      (raw.createdAt ? String(raw.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]),
     createdBy: raw.createdBy || 'admin',
+    uploadedBy: raw.uploadedBy || raw.createdBy || 'admin',
     views: Number(raw.views) || 0,
     likes: Number(raw.likes) || 0,
     createdAt: raw.createdAt || new Date().toISOString(),
     updatedAt: raw.updatedAt || new Date().toISOString(),
+    adsAllowed: raw.adsAllowed !== false,
+    downloadAllowed: raw.downloadAllowed !== false,
+    earlyAccess: Boolean(raw.earlyAccess || raw.isNewEpisode),
+    exclusive: Boolean(raw.exclusive || raw.accessType === 'exclusive'),
   };
 }
 
 /**
- * Saves a video record to Firebase Realtime Database at /videos/{videoId}
- * and mirrors to Firestore /videos/{videoId} for multi-database parity.
+ * Saves a video record to Firebase Realtime Database and Cloud Firestore
  */
 export async function saveVideoToFirebase(
   videoInput: Partial<VideoItem>,
   adminEmail: string
 ): Promise<{ success: boolean; video?: VideoItem; error?: string }> {
   try {
-    const embedValidation = validateAvCaptionEmbedUrl(videoInput.embedUrl || videoInput.avcaptionUrl || videoInput.videoStreamUrl);
-    if (!embedValidation.valid) {
-      return { success: false, error: embedValidation.error };
+    const rawTargetUrl = (
+      videoInput.videoUrl ||
+      videoInput.embedUrl ||
+      videoInput.avcaptionUrl ||
+      videoInput.videoStreamUrl ||
+      ''
+    ).trim();
+
+    const urlValidation = validateVideoUrl(rawTargetUrl);
+    if (!urlValidation.valid) {
+      return { success: false, error: urlValidation.error };
     }
 
     const seriesName = (videoInput.seriesName || videoInput.donghuaName || '').trim();
@@ -119,7 +184,8 @@ export async function saveVideoToFirebase(
       return { success: false, error: 'Video title is required.' };
     }
 
-    const videoId = videoInput.id || `video_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const videoId =
+      videoInput.id || `video_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const nowIso = new Date().toISOString();
 
     const normalized = normalizeVideoItem(
@@ -130,32 +196,33 @@ export async function saveVideoToFirebase(
         donghuaName: seriesName,
         seriesId: videoInput.seriesId || slugifySeries(seriesName),
         title,
-        embedUrl: (videoInput.embedUrl || videoInput.avcaptionUrl || videoInput.videoStreamUrl || '').trim(),
-        videoUrl: (videoInput.videoUrl || videoInput.videoStreamUrl || videoInput.embedUrl || '').trim(),
-        avcaptionUrl: (videoInput.embedUrl || videoInput.avcaptionUrl || videoInput.videoStreamUrl || '').trim(),
-        videoStreamUrl: (videoInput.videoUrl || videoInput.videoStreamUrl || videoInput.embedUrl || '').trim(),
+        videoUrl: rawTargetUrl,
+        videoStreamUrl: rawTargetUrl,
+        embedUrl: (videoInput.embedUrl || rawTargetUrl).trim(),
+        avcaptionUrl: (videoInput.embedUrl || rawTargetUrl).trim(),
         createdBy: adminEmail || 'admin',
+        uploadedBy: adminEmail || 'admin',
         createdAt: videoInput.createdAt || nowIso,
         updatedAt: nowIso,
       },
       videoId
     );
 
-    // 1. Save to Firebase Realtime Database at /videos/{videoId}
+    // Save to Firebase Realtime Database at /videos/{videoId}
     if (rtdb) {
       try {
         const videoRef = ref(rtdb, `videos/${videoId}`);
         await set(videoRef, normalized);
       } catch (rtdbErr: any) {
-        console.warn('Realtime Database video write notice:', rtdbErr?.message || rtdbErr);
+        console.warn('Realtime Database write notice:', rtdbErr?.message || rtdbErr);
       }
     }
 
-    // 2. Mirror to Cloud Firestore
+    // Mirror to Cloud Firestore
     try {
       await setDoc(doc(db, 'videos', videoId), normalized, { merge: true });
     } catch (fsErr: any) {
-      console.warn('Firestore video write notice:', fsErr?.message || fsErr);
+      console.warn('Firestore write notice:', fsErr?.message || fsErr);
     }
 
     return { success: true, video: normalized };
@@ -177,7 +244,7 @@ export async function updateVideoInFirebase(
     if (!videoId) return { success: false, error: 'Video ID is required.' };
 
     const nowIso = new Date().toISOString();
-    const cleanUpdates = {
+    const cleanUpdates: Record<string, any> = {
       ...updates,
       updatedAt: nowIso,
       updatedBy: adminEmail || 'admin',
@@ -192,6 +259,9 @@ export async function updateVideoInFirebase(
     if (updates.embedUrl) {
       cleanUpdates.avcaptionUrl = updates.embedUrl;
     }
+    if (updates.videoUrl) {
+      cleanUpdates.videoStreamUrl = updates.videoUrl;
+    }
 
     // Update in RTDB
     if (rtdb) {
@@ -199,7 +269,7 @@ export async function updateVideoInFirebase(
         const videoRef = ref(rtdb, `videos/${videoId}`);
         await update(videoRef, cleanUpdates);
       } catch (e: any) {
-        console.warn('RTDB video update notice:', e?.message || e);
+        console.warn('RTDB update notice:', e?.message || e);
       }
     }
 
@@ -207,10 +277,9 @@ export async function updateVideoInFirebase(
     try {
       await updateDoc(doc(db, 'videos', videoId), cleanUpdates);
     } catch (e: any) {
-      console.warn('Firestore video update notice:', e?.message || e);
+      console.warn('Firestore update notice:', e?.message || e);
     }
 
-    // Fetch refreshed
     const updated = await fetchVideoById(videoId);
     return { success: true, video: updated || undefined };
   } catch (err: any) {
@@ -220,22 +289,26 @@ export async function updateVideoInFirebase(
 }
 
 /**
- * Deletes a video record from Firebase Realtime Database and Firestore.
- * Does NOT touch or delete the AVCaption hosted video file.
+ * Deletes a video record from Firebase Realtime Database and Firestore
  */
 export async function deleteVideoFromFirebase(
-  videoId: string
+  videoId: string,
+  storagePath?: string,
+  thumbnailPath?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!videoId) return { success: false, error: 'Video ID is required.' };
 
+    const existing = await fetchVideoById(videoId);
+    const vPath = storagePath || existing?.videoStoragePath;
+    const tPath = thumbnailPath || existing?.thumbnailStoragePath;
+
     // Remove from RTDB
     if (rtdb) {
       try {
-        const videoRef = ref(rtdb, `videos/${videoId}`);
-        await remove(videoRef);
+        await remove(ref(rtdb, `videos/${videoId}`));
       } catch (e: any) {
-        console.warn('RTDB video remove notice:', e?.message || e);
+        console.warn('RTDB remove notice:', e?.message || e);
       }
     }
 
@@ -243,18 +316,22 @@ export async function deleteVideoFromFirebase(
     try {
       await deleteDoc(doc(db, 'videos', videoId));
     } catch (e: any) {
-      console.warn('Firestore video remove notice:', e?.message || e);
+      console.warn('Firestore remove notice:', e?.message || e);
     }
+
+    // Delete from Storage if applicable
+    if (vPath) await deleteStorageFile(vPath);
+    if (tPath) await deleteStorageFile(tPath);
 
     return { success: true };
   } catch (err: any) {
-    console.error('Error deleting video metadata from Firebase:', err);
+    console.error('Error deleting video:', err);
     return { success: false, error: err?.message || 'Failed to delete video record' };
   }
 }
 
 /**
- * Fetches a single video by ID from RTDB, Firestore, or Seed Catalog
+ * Fetches a single video by ID
  */
 export async function fetchVideoById(videoId: string): Promise<VideoItem | null> {
   if (!videoId) return null;
@@ -287,7 +364,7 @@ export async function fetchVideoById(videoId: string): Promise<VideoItem | null>
 }
 
 /**
- * Fetches all videos from Realtime Database, merging with Firestore & Seed data
+ * Fetches all videos from database and API
  */
 export async function fetchAllVideosFromFirebase(): Promise<VideoItem[]> {
   const videoMap = new Map<string, VideoItem>();
@@ -297,7 +374,26 @@ export async function fetchAllVideosFromFirebase(): Promise<VideoItem[]> {
     videoMap.set(v.id, normalizeVideoItem(v, v.id));
   });
 
-  // 2. Fetch from Realtime Database
+  // 2. In browser environment, fetch from API to get all server-stored custom videos
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/videos');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.videos)) {
+          data.videos.forEach((v: VideoItem) => {
+            const norm = normalizeVideoItem(v, v.id);
+            videoMap.set(norm.id, norm);
+          });
+          return Array.from(videoMap.values());
+        }
+      }
+    } catch (e) {
+      console.warn('API video fetch fallback to direct database:', e);
+    }
+  }
+
+  // 3. Fetch from Realtime Database
   if (rtdb) {
     try {
       const snap = await get(ref(rtdb, 'videos'));
@@ -312,11 +408,11 @@ export async function fetchAllVideosFromFirebase(): Promise<VideoItem[]> {
         });
       }
     } catch (e: any) {
-      console.warn('Realtime Database read all notice:', e?.message || e);
+      console.warn('Realtime Database fetch all notice:', e?.message || e);
     }
   }
 
-  // 3. Merge from Firestore
+  // 4. Merge from Firestore
   try {
     const fsSnap = await getDocs(collection(db, 'videos'));
     fsSnap.forEach((d) => {
@@ -325,15 +421,14 @@ export async function fetchAllVideosFromFirebase(): Promise<VideoItem[]> {
       videoMap.set(normalized.id, normalized);
     });
   } catch (e: any) {
-    console.warn('Firestore read all notice:', e?.message || e);
+    console.warn('Firestore fetch all notice:', e?.message || e);
   }
 
   return Array.from(videoMap.values());
 }
 
 /**
- * Groups videos by Series, and sorts all episodes NUMERICALLY (1, 2, 3... 10, 11)
- * rather than alphabetically (1, 10, 11, 2).
+ * Groups videos by Series and sorts episodes strictly numerically
  */
 export function groupVideosBySeries(videos: VideoItem[]): SeriesGroup[] {
   const seriesMap = new Map<string, SeriesGroup>();
@@ -357,7 +452,7 @@ export function groupVideosBySeries(videos: VideoItem[]): SeriesGroup[] {
     group.episodes.push(video);
   });
 
-  // For each series, sort episodes strictly numerically
+  // Numerical sorting for episodes (1, 2, 3 ... 10, 11)
   return Array.from(seriesMap.values()).map((group) => {
     group.episodes.sort((a, b) => {
       const epA = Number(a.episodeNumber) || 0;
@@ -375,21 +470,18 @@ export function groupVideosBySeries(videos: VideoItem[]): SeriesGroup[] {
 }
 
 /**
- * Client-side Realtime Database listener for dynamic real-time updates.
- * Calls onUpdate with new list whenever Firebase RTDB changes.
+ * Real-time updates subscription for client-side listeners
  */
 export function subscribeToFirebaseVideos(
   onUpdate: (videos: VideoItem[]) => void,
   onlyPublished: boolean = true
 ): () => void {
-  if (!rtdb) {
-    // Fallback: initial load
-    fetchAllVideosFromFirebase().then((list) => {
-      const filtered = onlyPublished ? list.filter((v) => v.published !== false) : list;
-      onUpdate(filtered);
-    });
-    return () => {};
-  }
+  fetchAllVideosFromFirebase().then((list) => {
+    const filtered = onlyPublished ? list.filter((v) => v.published !== false && v.status !== 'draft') : list;
+    onUpdate(filtered);
+  });
+
+  if (!rtdb) return () => {};
 
   try {
     const videosRef = ref(rtdb, 'videos');
@@ -398,7 +490,6 @@ export function subscribeToFirebaseVideos(
       (snapshot) => {
         const videoMap = new Map<string, VideoItem>();
 
-        // Include seed baseline
         INITIAL_SEED_VIDEOS.forEach((v) => videoMap.set(v.id, normalizeVideoItem(v, v.id)));
 
         if (snapshot.exists()) {
@@ -419,21 +510,13 @@ export function subscribeToFirebaseVideos(
         onUpdate(all);
       },
       (error) => {
-        console.warn('Realtime Database videos listener notice:', error?.message || error);
-        fetchAllVideosFromFirebase().then((list) => {
-          const filtered = onlyPublished ? list.filter((v) => v.published !== false) : list;
-          onUpdate(filtered);
-        });
+        console.warn('Realtime Database listener notice:', error?.message || error);
       }
     );
 
     return () => unsubscribe();
   } catch (err) {
     console.warn('Could not attach RTDB listener:', err);
-    fetchAllVideosFromFirebase().then((list) => {
-      const filtered = onlyPublished ? list.filter((v) => v.published !== false) : list;
-      onUpdate(filtered);
-    });
     return () => {};
   }
 }

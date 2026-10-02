@@ -5,8 +5,15 @@ import {
   saveVideoToFirebase,
   updateVideoInFirebase,
   deleteVideoFromFirebase,
-  validateAvCaptionEmbedUrl,
+  validateVideoUrl,
+  normalizeVideoItem,
 } from '@/lib/video-service';
+import {
+  loadServerVideos,
+  saveServerVideo,
+  updateServerVideo,
+  deleteServerVideo,
+} from '@/lib/video-store';
 import { VideoItem } from '@/lib/types';
 
 export async function GET(req: NextRequest) {
@@ -17,7 +24,17 @@ export async function GET(req: NextRequest) {
     const contentType = searchParams.get('contentType');
     const series = searchParams.get('series')?.toLowerCase();
 
-    let list: VideoItem[] = await fetchAllVideosFromFirebase();
+    // 1. Load from server-side persistent store (highest authority for custom uploaded videos)
+    const serverVideos = loadServerVideos();
+
+    // 2. Load from Firebase / Seed
+    const fbVideos = await fetchAllVideosFromFirebase();
+
+    const videoMap = new Map<string, VideoItem>();
+    fbVideos.forEach((v) => videoMap.set(v.id, v));
+    serverVideos.forEach((v) => videoMap.set(v.id, normalizeVideoItem(v, v.id)));
+
+    let list: VideoItem[] = Array.from(videoMap.values());
 
     // Apply filter
     if (filter && filter !== 'all') {
@@ -89,27 +106,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Video title is required.' }, { status: 400 });
     }
 
-    const embedUrl = (videoData.embedUrl || videoData.avcaptionUrl || videoData.videoStreamUrl || '').trim();
-    const validation = validateAvCaptionEmbedUrl(embedUrl);
+    const rawUrl = (videoData.videoUrl || videoData.embedUrl || videoData.avcaptionUrl || videoData.videoStreamUrl || '').trim();
+    const validation = validateVideoUrl(rawUrl);
     if (!validation.valid) {
       return NextResponse.json({ success: false, error: validation.error }, { status: 400 });
     }
 
+    // Save to Firebase
     const result = await saveVideoToFirebase(
       {
         ...videoData,
         seriesName,
         donghuaName: seriesName,
         title,
-        embedUrl,
-        avcaptionUrl: embedUrl,
+        videoUrl: rawUrl,
+        videoStreamUrl: rawUrl,
+        embedUrl: videoData.embedUrl || rawUrl,
+        avcaptionUrl: videoData.embedUrl || rawUrl,
       },
       cleanAdminEmail
     );
 
-    if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
+    if (!result.success || !result.video) {
+      return NextResponse.json({ success: false, error: result.error || 'Failed to save video.' }, { status: 500 });
     }
+
+    // Also persist permanently to server store
+    await saveServerVideo(result.video);
 
     return NextResponse.json({
       success: true,
@@ -139,18 +162,19 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Video ID and updates are required' }, { status: 400 });
     }
 
-    if (updates.embedUrl) {
-      const validation = validateAvCaptionEmbedUrl(updates.embedUrl);
+    if (updates.videoUrl || updates.embedUrl) {
+      const targetUrl = (updates.videoUrl || updates.embedUrl || '').trim();
+      const validation = validateVideoUrl(targetUrl);
       if (!validation.valid) {
         return NextResponse.json({ success: false, error: validation.error }, { status: 400 });
       }
     }
 
+    // Update in Firebase
     const result = await updateVideoInFirebase(videoId, updates, cleanAdminEmail);
 
-    if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
-    }
+    // Update in server store
+    await updateServerVideo(videoId, updates);
 
     return NextResponse.json({
       success: true,
@@ -165,7 +189,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const { adminEmail, adminRole, videoId } = body;
+    const { adminEmail, adminRole, videoId, storagePath, thumbnailPath } = body;
     const cleanAdminEmail = (adminEmail || req.headers.get('x-admin-email') || '').toLowerCase().trim();
 
     if (!verifyAdminAccess(cleanAdminEmail, adminRole) && !isDesignatedAdmin(cleanAdminEmail)) {
@@ -179,15 +203,15 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Video ID is required' }, { status: 400 });
     }
 
-    const result = await deleteVideoFromFirebase(videoId);
+    // Delete from Firebase
+    await deleteVideoFromFirebase(videoId, storagePath, thumbnailPath);
 
-    if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
-    }
+    // Delete from server store
+    await deleteServerVideo(videoId);
 
     return NextResponse.json({
       success: true,
-      message: 'Video metadata removed from Firebase catalogue (AVCaption file is untouched)',
+      message: 'Video metadata and files removed from Firebase successfully',
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

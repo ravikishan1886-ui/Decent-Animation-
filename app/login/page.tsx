@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, isDesignatedAdmin } from '@/lib/auth-context';
+import { auth } from '@/lib/firebase';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -50,7 +51,12 @@ export default function LoginPage() {
       }
       try {
         await signInGoogle();
-        router.push('/dashboard');
+        const currentUser = auth.currentUser;
+        if (isDesignatedAdmin(currentUser?.email)) {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       } catch (popupErr: any) {
         console.warn('Google popup error, trying redirect fallback:', popupErr);
         // Automatically try full-page redirect if popup was blocked by browser/mobile

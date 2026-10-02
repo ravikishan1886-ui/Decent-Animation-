@@ -1,29 +1,37 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { VideoItem, RequiredPlan, ContentType, PublishingStatus, AccessType, SUBSCRIPTION_PLANS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
-import { validateAvCaptionEmbedUrl } from '@/lib/video-service';
+import { validateVideoUrl, slugifySeries } from '@/lib/video-service';
+import { rtdb, db } from '@/lib/firebase';
+import { ref, set } from 'firebase/database';
+import { doc, setDoc } from 'firebase/firestore';
+import {
+  uploadVideoToStorage,
+  uploadThumbnailToStorage,
+  formatBytes,
+  UploadProgress,
+} from '@/lib/storage-service';
 import {
   Upload,
   Film,
-  Tv,
   Sparkles,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
-  Calendar,
   Lock,
-  ShieldCheck,
-  ChevronDown,
   Play,
-  RotateCcw,
   Trash2,
   Save,
   Check,
-  ExternalLink,
-  Layers,
+  FileVideo,
+  HardDrive,
+  Image as ImageIcon,
+  Loader2,
+  Link as LinkIcon,
+  X,
 } from 'lucide-react';
 
 interface AdminVideoFormProps {
@@ -63,26 +71,69 @@ const DEFAULT_THUMBNAILS = [
   'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1000&auto=format&fit=crop&q=80',
 ];
 
+type UploadStage =
+  | 'idle'
+  | 'preparing'
+  | 'uploading'
+  | 'processing'
+  | 'saving_metadata'
+  | 'completed'
+  | 'error';
+
 export function AdminVideoForm({
   initialVideo,
   onSuccess,
   onCancel,
-  existingSeriesList = ['Battle Through the Heavens (Doupo Cangqiong)', 'Soul Land (Douluo Dalu)', 'Renegade Immortal (Xian Ni)', 'Perfect World (Wanmei Shijie)', 'A Will Eternal (Yi Nian Yong Heng)'],
+  existingSeriesList = [
+    'Battle Through the Heavens (Doupo Cangqiong)',
+    'Soul Land (Douluo Dalu)',
+    'Renegade Immortal (Xian Ni)',
+    'Perfect World (Wanmei Shijie)',
+    'A Will Eternal (Yi Nian Yong Heng)',
+  ],
 }: AdminVideoFormProps) {
   const { user, profile } = useAuth();
   const isEditMode = Boolean(initialVideo?.id);
 
+  // Video Source Mode: 'upload' (Firebase Storage) or 'external' (AVCaption / External embed)
+  const [sourceMode, setSourceMode] = useState<'upload' | 'external'>(
+    initialVideo?.videoSource === 'external' ? 'external' : 'upload'
+  );
+
+  // File Upload states
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null);
+  const [videoFilePreview, setVideoFilePreview] = useState<string | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadStage, setUploadStage] = useState<UploadStage>('idle');
+  const [uploadStageMessage, setUploadStageMessage] = useState<string>('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+
   // Form Fields
-  const [seriesName, setSeriesName] = useState(initialVideo?.seriesName || initialVideo?.donghuaName || '');
+  const [seriesName, setSeriesName] = useState(
+    initialVideo?.seriesName || initialVideo?.donghuaName || ''
+  );
   const [title, setTitle] = useState(initialVideo?.title || '');
   const [episodeNumber, setEpisodeNumber] = useState<number>(initialVideo?.episodeNumber || 1);
   const [seasonNumber, setSeasonNumber] = useState<number>(initialVideo?.seasonNumber || 1);
   const [description, setDescription] = useState(initialVideo?.description || '');
-  const [thumbnailUrl, setThumbnailUrl] = useState(initialVideo?.thumbnailUrl || DEFAULT_THUMBNAILS[0]);
-  const [embedUrl, setEmbedUrl] = useState(initialVideo?.embedUrl || initialVideo?.avcaptionUrl || '');
-  const [videoUrl, setVideoUrl] = useState(initialVideo?.videoUrl || initialVideo?.videoStreamUrl || '');
+  const [thumbnailUrl, setThumbnailUrl] = useState(
+    initialVideo?.thumbnailUrl || DEFAULT_THUMBNAILS[0]
+  );
+  const [embedUrl, setEmbedUrl] = useState(
+    initialVideo?.embedUrl || initialVideo?.avcaptionUrl || ''
+  );
+  const [videoUrl, setVideoUrl] = useState(
+    initialVideo?.videoUrl || initialVideo?.videoStreamUrl || ''
+  );
   const [videoType, setVideoType] = useState<ContentType>(
-    (initialVideo?.videoType as ContentType) || (initialVideo?.contentType as ContentType) || 'episode'
+    (initialVideo?.videoType as ContentType) ||
+      (initialVideo?.contentType as ContentType) ||
+      'episode'
   );
   const [accessType, setAccessType] = useState<AccessType>(initialVideo?.accessType || 'free');
   const [requiredPlan, setRequiredPlan] = useState<string>(initialVideo?.requiredPlan || 'basic');
@@ -96,6 +147,17 @@ export function AdminVideoForm({
     initialVideo ? initialVideo.published !== false && initialVideo.status !== 'draft' : true
   );
 
+  const [adsAllowed, setAdsAllowed] = useState<boolean>(initialVideo?.adsAllowed !== false);
+  const [downloadAllowed, setDownloadAllowed] = useState<boolean>(
+    initialVideo?.downloadAllowed !== false
+  );
+  const [earlyAccess, setEarlyAccess] = useState<boolean>(
+    Boolean(initialVideo?.isNewEpisode || (initialVideo as any)?.earlyAccess)
+  );
+  const [exclusive, setExclusive] = useState<boolean>(
+    Boolean((initialVideo as any)?.exclusive || initialVideo?.accessType === 'exclusive')
+  );
+
   // Status & Validation states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -104,7 +166,66 @@ export function AdminVideoForm({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Auto-fill title helper when series & episode change and title is blank or follows pattern
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (videoFilePreview) URL.revokeObjectURL(videoFilePreview);
+      if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    };
+  }, [videoFilePreview, thumbnailPreview]);
+
+  // Handle Video File selection
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check mime type or extension
+    const validExtensions = ['.mp4', '.webm', '.mkv', '.mov'];
+    const isVideo =
+      file.type.startsWith('video/') ||
+      validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext));
+
+    if (!isVideo) {
+      setErrorMessage('Please select a valid video file (.mp4, .webm, .mkv, .mov).');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSelectedVideoFile(file);
+
+    // Auto-generate title if empty
+    if (!title && seriesName) {
+      setTitle(`${seriesName.trim()} Episode ${episodeNumber}`);
+    } else if (!title) {
+      const cleanBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
+      setTitle(cleanBaseName);
+    }
+
+    // Create temporary local preview for immediate verification
+    if (videoFilePreview) URL.revokeObjectURL(videoFilePreview);
+    const objectUrl = URL.createObjectURL(file);
+    setVideoFilePreview(objectUrl);
+  };
+
+  // Handle Thumbnail File selection
+  const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please select a valid image file for the thumbnail (.jpg, .png, .webp).');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSelectedThumbnailFile(file);
+
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    const objectUrl = URL.createObjectURL(file);
+    setThumbnailPreview(objectUrl);
+  };
+
+  // Auto-fill title helper when series & episode change
   const handleSeriesChange = (val: string) => {
     setSeriesName(val);
     if (!title || title.includes('Episode') || title === '') {
@@ -119,18 +240,13 @@ export function AdminVideoForm({
     }
   };
 
-  const [adsAllowed, setAdsAllowed] = useState<boolean>(initialVideo?.adsAllowed !== false);
-  const [downloadAllowed, setDownloadAllowed] = useState<boolean>(initialVideo?.downloadAllowed !== false);
-  const [earlyAccess, setEarlyAccess] = useState<boolean>(Boolean(initialVideo?.isNewEpisode || (initialVideo as any)?.earlyAccess));
-  const [exclusive, setExclusive] = useState<boolean>(Boolean((initialVideo as any)?.exclusive || initialVideo?.accessType === 'exclusive'));
-
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    // Validation
+    // Form field validation
     if (!seriesName.trim()) {
       setErrorMessage('Please enter the Series Name.');
       return;
@@ -139,53 +255,137 @@ export function AdminVideoForm({
       setErrorMessage('Please enter a Video Title.');
       return;
     }
-    const embedValidation = validateAvCaptionEmbedUrl(embedUrl);
-    if (!embedValidation.valid) {
-      setErrorMessage(embedValidation.error || 'Please enter a valid AVCaption embed URL.');
-      return;
+
+    let finalVideoUrl = videoUrl.trim();
+    let finalVideoStoragePath = initialVideo?.videoStoragePath;
+    let finalThumbnailUrl = thumbnailUrl.trim();
+    let finalThumbnailStoragePath = initialVideo?.thumbnailStoragePath;
+    let finalFileName = initialVideo?.fileName;
+    let finalFileSize = initialVideo?.fileSize;
+
+    // Direct Upload Mode Validation
+    if (sourceMode === 'upload') {
+      if (!isEditMode && !selectedVideoFile) {
+        setErrorMessage('Please select an actual video file (.mp4, .webm, .mkv, .mov) to upload.');
+        return;
+      }
+      if (isEditMode && !selectedVideoFile && !finalVideoUrl) {
+        setErrorMessage('This video record has no uploaded file. Please select a video file.');
+        return;
+      }
+    } else {
+      // External / AVCaption Mode Validation
+      const targetExternalUrl = (embedUrl || videoUrl).trim();
+      const validation = validateVideoUrl(targetExternalUrl);
+      if (!validation.valid) {
+        setErrorMessage(validation.error || 'Please enter a valid external video or embed URL.');
+        return;
+      }
+      finalVideoUrl = targetExternalUrl;
     }
 
     setIsSubmitting(true);
-
-    const payload: Partial<VideoItem> & Record<string, any> = {
-      id: initialVideo?.id,
-      title: title.trim(),
-      seriesName: seriesName.trim(),
-      donghuaName: seriesName.trim(),
-      episodeNumber: Number(episodeNumber) || 1,
-      seasonNumber: Number(seasonNumber) || 1,
-      description: description.trim() || `${seriesName.trim()} - Episode ${episodeNumber}`,
-      shortDescription: description.trim().slice(0, 150),
-      thumbnailUrl: thumbnailUrl.trim() || DEFAULT_THUMBNAILS[0],
-      posterUrl: thumbnailUrl.trim() || DEFAULT_THUMBNAILS[0],
-      embedUrl: embedUrl.trim(),
-      avcaptionUrl: embedUrl.trim(),
-      videoUrl: videoUrl.trim() || embedUrl.trim(),
-      videoStreamUrl: videoUrl.trim() || embedUrl.trim(),
-      contentType: videoType,
-      videoType: videoType as any,
-      accessType: accessType,
-      requiredPlan: accessType === 'free' ? 'free' : requiredPlan,
-      genre: genre.trim(),
-      category: genre.trim(),
-      genres: [genre.trim()],
-      language: language.trim(),
-      audio: language.trim(),
-      subtitles: subtitles.trim(),
-      releaseDate: releaseDate || new Date().toISOString().split('T')[0],
-      published: isPublished,
-      status: isPublished ? 'published' : 'draft',
-      adsAllowed,
-      adsEnabled: adsAllowed,
-      downloadAllowed,
-      downloadEnabled: downloadAllowed,
-      earlyAccess,
-      isNewEpisode: earlyAccess,
-      exclusive,
-      exclusiveAccess: exclusive,
-    };
+    setUploadStage('preparing');
+    setUploadStageMessage('Preparing upload pipeline...');
 
     try {
+      // 1. If a new video file was selected, upload directly to Firebase Storage
+      if (sourceMode === 'upload' && selectedVideoFile) {
+        setUploadStage('uploading');
+        setUploadStageMessage(
+          `Uploading ${selectedVideoFile.name} (${formatBytes(selectedVideoFile.size)}) to Firebase Storage...`
+        );
+
+        const seriesSlug = slugifySeries(seriesName);
+        const videoId = initialVideo?.id || `vid_${Date.now()}`;
+
+        const uploadResult = await uploadVideoToStorage(
+          selectedVideoFile,
+          (prog) => {
+            setUploadProgress(prog);
+            if (prog.percentage < 100) {
+              setUploadStageMessage(
+                `Uploading: ${prog.percentage}% (${prog.formattedTransferred} of ${prog.formattedTotal})`
+              );
+            } else {
+              setUploadStage('processing');
+              setUploadStageMessage('Processing upload and acquiring permanent download URL...');
+            }
+          },
+          {
+            seriesSlug,
+            videoId,
+            adminEmail: user?.email || '',
+            adminRole: profile?.role || 'admin',
+          }
+        );
+
+        finalVideoUrl = uploadResult.downloadUrl;
+        finalVideoStoragePath = uploadResult.storagePath;
+        finalFileName = uploadResult.fileName;
+        finalFileSize = uploadResult.fileSize;
+      }
+
+      // 2. If a new thumbnail file was selected, upload to Storage
+      if (selectedThumbnailFile) {
+        setUploadStageMessage('Uploading custom thumbnail image...');
+        const thumbResult = await uploadThumbnailToStorage(selectedThumbnailFile, undefined, {
+          adminEmail: user?.email || '',
+          adminRole: profile?.role || 'admin',
+        });
+        finalThumbnailUrl = thumbResult.downloadUrl;
+        finalThumbnailStoragePath = thumbResult.storagePath;
+      }
+
+      // 3. Save metadata to Firebase Realtime Database & Cloud Firestore
+      setUploadStage('saving_metadata');
+      setUploadStageMessage('Writing persistent record to Firebase Realtime Database...');
+
+      const payload: Partial<VideoItem> & Record<string, any> = {
+        id: initialVideo?.id,
+        title: title.trim(),
+        seriesName: seriesName.trim(),
+        donghuaName: seriesName.trim(),
+        seriesId: slugifySeries(seriesName),
+        episodeNumber: Number(episodeNumber) || 1,
+        seasonNumber: Number(seasonNumber) || 1,
+        description: description.trim() || `${seriesName.trim()} - Episode ${episodeNumber}`,
+        shortDescription: description.trim().slice(0, 150),
+        thumbnailUrl: finalThumbnailUrl || DEFAULT_THUMBNAILS[0],
+        posterUrl: finalThumbnailUrl || DEFAULT_THUMBNAILS[0],
+        videoSource: sourceMode === 'external' ? 'external' : 'firebase',
+        videoUrl: finalVideoUrl,
+        embedUrl: sourceMode === 'external' ? embedUrl.trim() || finalVideoUrl : finalVideoUrl,
+        avcaptionUrl: sourceMode === 'external' ? embedUrl.trim() || finalVideoUrl : finalVideoUrl,
+        videoStreamUrl: finalVideoUrl,
+        videoStoragePath: finalVideoStoragePath,
+        thumbnailStoragePath: finalThumbnailStoragePath,
+        fileName: finalFileName,
+        fileSize: finalFileSize,
+        contentType: videoType,
+        videoType: videoType as any,
+        accessType: accessType,
+        requiredPlan: accessType === 'free' ? 'free' : requiredPlan,
+        genre: genre.trim(),
+        category: genre.trim(),
+        genres: [genre.trim()],
+        language: language.trim(),
+        audio: language.trim(),
+        subtitles: subtitles.trim(),
+        releaseDate: releaseDate || new Date().toISOString().split('T')[0],
+        published: isPublished,
+        status: isPublished ? 'published' : 'draft',
+        adsAllowed,
+        adsEnabled: adsAllowed,
+        downloadAllowed,
+        downloadEnabled: downloadAllowed,
+        earlyAccess,
+        isNewEpisode: earlyAccess,
+        exclusive,
+        exclusiveAccess: exclusive,
+        uploadedBy: user?.email || 'admin',
+      };
+
       const url = '/api/admin/videos';
       const method = isEditMode ? 'PUT' : 'POST';
       const bodyPayload = isEditMode
@@ -212,28 +412,55 @@ export function AdminVideoForm({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to save video to Firebase.');
+        throw new Error(data.error || 'Failed to save video metadata to Firebase.');
       }
 
+      // Multi-layer client sync to Firebase RTDB and Firestore
+      if (data.video) {
+        if (rtdb) {
+          try {
+            await set(ref(rtdb, `videos/${data.video.id}`), data.video);
+          } catch (rtdbErr) {
+            console.warn('Direct client RTDB write notice:', rtdbErr);
+          }
+        }
+        try {
+          await setDoc(doc(db, 'videos', data.video.id), data.video, { merge: true });
+        } catch (fsErr) {
+          console.warn('Direct client Firestore write notice:', fsErr);
+        }
+      }
+
+      setUploadStage('completed');
       setSuccessMessage(
         isEditMode
-          ? `Video "${title}" was successfully updated in Firebase Realtime Database!`
-          : `Video "${title}" was successfully published to Firebase Realtime Database! It is now live on the website.`
+          ? `Video "${title}" was successfully updated in Firebase!`
+          : `Video "${title}" was successfully uploaded and published to Realtime Database!`
       );
 
       if (!isEditMode) {
-        // Reset form for adding another episode quickly
+        // Reset file selections for subsequent uploads
+        setSelectedVideoFile(null);
+        setSelectedThumbnailFile(null);
+        if (videoFilePreview) URL.revokeObjectURL(videoFilePreview);
+        if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+        setVideoFilePreview(null);
+        setThumbnailPreview(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (thumbInputRef.current) thumbInputRef.current.value = '';
+
+        // Auto increment episode number for seamless next episode additions
         setEpisodeNumber((prev) => prev + 1);
         setTitle(`${seriesName} Episode ${episodeNumber + 1}`);
-        setEmbedUrl('');
-        setVideoUrl('');
       }
 
       if (onSuccess && data.video) {
         onSuccess(data.video);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Network error saving video.');
+      console.error('Video upload execution error:', err);
+      setUploadStage('error');
+      setErrorMessage(err.message || 'An error occurred during video upload.');
     } finally {
       setIsSubmitting(false);
     }
@@ -256,6 +483,8 @@ export function AdminVideoForm({
           adminEmail: user?.email,
           adminRole: profile?.role || 'admin',
           videoId: initialVideo.id,
+          storagePath: initialVideo.videoStoragePath,
+          thumbnailPath: initialVideo.thumbnailStoragePath,
         }),
       });
 
@@ -273,6 +502,13 @@ export function AdminVideoForm({
     }
   };
 
+  // Preview URL to render in live preview
+  const activePreviewUrl =
+    videoFilePreview ||
+    videoUrl ||
+    embedUrl ||
+    (initialVideo?.videoUrl || initialVideo?.embedUrl || '');
+
   return (
     <div className="w-full max-w-4xl mx-auto rounded-3xl bg-[#0f0f18] border border-[#232338] shadow-2xl overflow-hidden">
       {/* Form Top Header */}
@@ -283,13 +519,13 @@ export function AdminVideoForm({
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-              {isEditMode ? 'Edit Video Metadata' : 'Add New AVCaption Video'}
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono border border-amber-500/30">
-                RTDB Synced
+              {isEditMode ? 'Edit Video Details' : 'Upload Video to Decent Animation'}
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/30">
+                Persistent Storage
               </span>
             </h2>
             <p className="text-xs text-gray-400">
-              Host on AVCaption, store metadata in Firebase Realtime Database. Zero code changes required.
+              Upload real MP4/video files directly to Firebase Storage and save metadata to Realtime Database.
             </p>
           </div>
         </div>
@@ -322,21 +558,72 @@ export function AdminVideoForm({
 
       {/* Alert Banners */}
       {errorMessage && (
-        <div className="m-5 p-4 rounded-2xl bg-red-950/80 border border-red-500/60 text-red-200 text-xs sm:text-sm flex items-start gap-3 shadow-lg">
+        <div className="m-5 p-4 rounded-2xl bg-red-950/80 border border-red-500/60 text-red-200 text-xs sm:text-sm flex items-start gap-3 shadow-lg animate-in fade-in">
           <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-bold text-white">Validation Error</p>
+            <p className="font-bold text-white">Upload / Validation Error</p>
             <p className="mt-0.5">{errorMessage}</p>
           </div>
+          <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
       {successMessage && (
-        <div className="m-5 p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs sm:text-sm flex items-start gap-3 shadow-lg">
+        <div className="m-5 p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs sm:text-sm flex items-start gap-3 shadow-lg animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-bold text-white">Saved to Firebase Realtime Database</p>
+            <p className="font-bold text-white">Upload Confirmed</p>
             <p className="mt-0.5">{successMessage}</p>
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Real-time Upload Progress Banner (When in progress) */}
+      {isSubmitting && (
+        <div className="m-5 p-5 rounded-2xl bg-gradient-to-r from-[#18182a] to-[#121220] border border-amber-500/40 shadow-xl space-y-3">
+          <div className="flex items-center justify-between text-xs font-mono font-bold">
+            <span className="flex items-center gap-2 text-amber-300">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              <span>{uploadStageMessage}</span>
+            </span>
+            {uploadProgress && (
+              <span className="text-amber-400 font-bold">{uploadProgress.percentage}%</span>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden border border-[#2b2b40]">
+            <div
+              className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-emerald-400 transition-all duration-200 ease-out"
+              style={{
+                width: `${
+                  uploadStage === 'saving_metadata'
+                    ? 95
+                    : uploadStage === 'processing'
+                    ? 90
+                    : uploadProgress?.percentage || 5
+                }%`,
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+            <span>
+              Stage:{' '}
+              <strong className="text-gray-200 uppercase">
+                {uploadStage.replace('_', ' ')}
+              </strong>
+            </span>
+            {uploadProgress && (
+              <span>
+                {uploadProgress.formattedTransferred} of {uploadProgress.formattedTotal}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -347,7 +634,7 @@ export function AdminVideoForm({
           <div className="flex items-center justify-between text-xs text-amber-300 font-mono font-bold">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              LIVE VISITOR PREVIEW (AVCaption Player + Metadata)
+              LIVE VISITOR PREVIEW (Real Player + Metadata)
             </span>
             <span className="text-gray-400">
               {accessType === 'free' ? 'FREE TO WATCH' : `REQUIRES: ${requiredPlan.toUpperCase()}`}
@@ -355,20 +642,30 @@ export function AdminVideoForm({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-            {/* Embed Player Preview */}
+            {/* Player Preview */}
             <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-[#2b2b40] relative shadow-inner">
-              {embedUrl.trim() ? (
-                <iframe
-                  src={embedUrl.trim()}
-                  className="w-full h-full border-0"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  title={title || 'Preview Player'}
-                />
+              {activePreviewUrl ? (
+                sourceMode === 'external' &&
+                (activePreviewUrl.includes('embed') || activePreviewUrl.includes('iframe')) ? (
+                  <iframe
+                    src={activePreviewUrl}
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                    title={title || 'Preview Player'}
+                  />
+                ) : (
+                  <video
+                    src={activePreviewUrl}
+                    controls
+                    playsInline
+                    className="w-full h-full object-contain"
+                    poster={thumbnailPreview || thumbnailUrl}
+                  />
+                )
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 p-4 text-center space-y-2">
                   <Play className="w-8 h-8 text-amber-500/50" />
-                  <p className="text-xs">Paste AVCaption embed URL below to preview the video player here.</p>
+                  <p className="text-xs">Select a video file or enter a link to preview playback here.</p>
                 </div>
               )}
             </div>
@@ -384,8 +681,12 @@ export function AdminVideoForm({
                 </span>
                 <span className="text-[10px] text-gray-400 font-mono">{language}</span>
               </div>
-              <h3 className="text-base font-bold text-white leading-snug">{title || 'Video Title Goes Here'}</h3>
-              <p className="text-xs text-amber-400 font-semibold font-mono">{seriesName || 'Series Name'}</p>
+              <h3 className="text-base font-bold text-white leading-snug">
+                {title || 'Video Title Goes Here'}
+              </h3>
+              <p className="text-xs text-amber-400 font-semibold font-mono">
+                {seriesName || 'Series Name'}
+              </p>
               <p className="text-xs text-gray-300 line-clamp-3 leading-relaxed">
                 {description || 'Episode description summary as seen by cultivators.'}
               </p>
@@ -396,41 +697,160 @@ export function AdminVideoForm({
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-6">
-        {/* SECTION 1: AVCAPTION EMBED (CRITICAL) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#161628] to-[#121220] border border-amber-500/30 space-y-3">
+        {/* SECTION 1: VIDEO SOURCE MODE SELECTOR */}
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Play className="w-3.5 h-3.5 text-amber-400" />
-              AVCaption Embed URL <span className="text-red-400">*</span>
+            <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <HardDrive className="w-4 h-4 text-amber-400" />
+              <span>Video Storage Source</span>
             </label>
-            <span className="text-[10px] text-gray-400 font-mono">No API Key Needed</span>
+            <span className="text-[10px] text-gray-400 font-mono">
+              {sourceMode === 'upload' ? 'Direct Firebase Storage Upload' : 'External AVCaption Link'}
+            </span>
           </div>
 
-          <input
-            type="url"
-            required
-            value={embedUrl}
-            onChange={(e) => setEmbedUrl(e.target.value)}
-            placeholder="https://avcaption.com/embed/your-video-id"
-            className="w-full px-4 py-3 rounded-xl bg-[#0b0b12] border border-[#2d2d44] text-white text-xs sm:text-sm font-mono placeholder:text-gray-600 focus:outline-none focus:border-amber-400 transition-colors shadow-inner"
-          />
-          <p className="text-[11px] text-gray-400 leading-relaxed">
-            Copy the <strong>Embed URL</strong> directly from your AVCaption video dashboard and paste it here. The video player will automatically render this embed in a responsive player.
-          </p>
+          {/* Toggle Tabs */}
+          <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-[#141422] border border-[#28283c]">
+            <button
+              type="button"
+              onClick={() => setSourceMode('upload')}
+              className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                sourceMode === 'upload'
+                  ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              <span>Upload Video File (Firebase Storage)</span>
+            </button>
 
-          {/* Optional Direct Stream / Video URL */}
-          <div className="pt-2 border-t border-[#202034]">
-            <label className="text-[11px] font-semibold text-gray-400 flex items-center justify-between">
-              <span>AVCaption Video URL (Optional direct video link)</span>
-            </label>
-            <input
-              type="text"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="Optional: https://avcaption.com/v/your-video-id or .mp4 fallback"
-              className="mt-1.5 w-full px-3 py-2 rounded-xl bg-[#0b0b12] border border-[#242438] text-gray-200 text-xs font-mono placeholder:text-gray-600 focus:outline-none focus:border-amber-500"
-            />
+            <button
+              type="button"
+              onClick={() => setSourceMode('external')}
+              className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                sourceMode === 'external'
+                  ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <LinkIcon className="w-4 h-4" />
+              <span>External / AVCaption Link</span>
+            </button>
           </div>
+
+          {/* MODE 1: DIRECT VIDEO FILE UPLOAD */}
+          {sourceMode === 'upload' && (
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#161628] to-[#121220] border border-amber-500/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  <FileVideo className="w-4 h-4 text-amber-400" />
+                  Select Video File (.mp4, .webm, .mkv, .mov)
+                </span>
+                {selectedVideoFile && (
+                  <span className="text-xs text-emerald-400 font-mono font-bold">
+                    {formatBytes(selectedVideoFile.size)}
+                  </span>
+                )}
+              </div>
+
+              {/* Hidden File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/mkv,video/quicktime,video/*"
+                onChange={handleVideoFileChange}
+                className="hidden"
+              />
+
+              {/* Dropzone Box */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className={`p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center flex flex-col items-center justify-center space-y-3 ${
+                  selectedVideoFile
+                    ? 'bg-[#18182a] border-emerald-500/60 shadow-lg'
+                    : 'bg-[#0d0d16] border-[#2e2e46] hover:border-amber-400/60 hover:bg-[#131320]'
+                }`}
+              >
+                <div
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                    selectedVideoFile
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-[#1c1c2c] text-amber-400 border border-[#2b2b40]'
+                  }`}
+                >
+                  <FileVideo className="w-7 h-7" />
+                </div>
+
+                {selectedVideoFile ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-white break-all">
+                      {selectedVideoFile.name}
+                    </p>
+                    <p className="text-xs text-gray-400 font-mono">
+                      File Size: <strong className="text-emerald-400">{formatBytes(selectedVideoFile.size)}</strong> • Click to change file
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-w-sm">
+                    <p className="text-sm font-bold text-white">
+                      Click to choose video file or drag and drop here
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Supports MP4, WebM, MKV, QuickTime. Uploads directly to Firebase Storage bucket.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* If editing an existing uploaded video and no new file selected yet */}
+              {isEditMode && !selectedVideoFile && initialVideo?.videoUrl && (
+                <div className="p-3 rounded-xl bg-[#141422] border border-[#262638] flex items-center justify-between text-xs">
+                  <div className="space-y-0.5 truncate mr-2">
+                    <span className="text-[10px] uppercase font-mono text-gray-400 block">
+                      Currently Attached Video URL:
+                    </span>
+                    <p className="text-amber-300 font-mono truncate">{initialVideo.videoUrl}</p>
+                    {initialVideo.fileSize && (
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        Saved Size: {initialVideo.fileSize}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-lg bg-[#222234] hover:bg-[#2b2b42] text-white font-semibold text-xs shrink-0"
+                  >
+                    Replace File
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MODE 2: EXTERNAL AVCAPTION LINK */}
+          {sourceMode === 'external' && (
+            <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#161628] to-[#121220] border border-amber-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Play className="w-3.5 h-3.5 text-amber-400" />
+                  AVCaption Embed / Video URL <span className="text-red-400">*</span>
+                </label>
+                <span className="text-[10px] text-gray-400 font-mono">External Host</span>
+              </div>
+
+              <input
+                type="url"
+                value={embedUrl}
+                onChange={(e) => setEmbedUrl(e.target.value)}
+                placeholder="https://avcaption.com/embed/your-video-id"
+                className="w-full px-4 py-3 rounded-xl bg-[#0b0b12] border border-[#2d2d44] text-white text-xs sm:text-sm font-mono placeholder:text-gray-600 focus:outline-none focus:border-amber-400 transition-colors shadow-inner"
+              />
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                Paste your AVCaption embed or external video stream link here. It will be preserved and played through the player.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* SECTION 2: SERIES & EPISODE ORGANIZATION */}
@@ -438,7 +858,9 @@ export function AdminVideoForm({
           {/* Series Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-              <span>Series Name <span className="text-red-400">*</span></span>
+              <span>
+                Series Name <span className="text-red-400">*</span>
+              </span>
               <span className="text-[10px] text-gray-500 font-normal">Auto-grouped</span>
             </label>
             <input
@@ -501,7 +923,7 @@ export function AdminVideoForm({
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-gray-400 uppercase">
-              Season # (Opt)
+              Season #
             </label>
             <input
               type="number"
@@ -513,9 +935,7 @@ export function AdminVideoForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-300 uppercase">
-              Type
-            </label>
+            <label className="text-[11px] font-bold text-gray-300 uppercase">Type</label>
             <select
               value={videoType}
               onChange={(e) => setVideoType(e.target.value as ContentType)}
@@ -529,7 +949,7 @@ export function AdminVideoForm({
         </div>
 
         {/* SECTION 3: ACCESS & SUBSCRIPTION REQUIREMENT */}
-        <div className="p-4 rounded-2xl bg-[#141422] border border-[#232338] space-y-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#141422] border border-[#232338] space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-amber-400" />
@@ -572,11 +992,35 @@ export function AdminVideoForm({
             </button>
           </div>
 
+          {/* Required Plan Selection when Paid */}
+          {accessType !== 'free' && (
+            <div className="space-y-1.5 pt-2 border-t border-[#232338]">
+              <label className="text-[11px] font-bold text-amber-300 uppercase">
+                Choose Required Subscription Tier:
+              </label>
+              <select
+                value={requiredPlan}
+                onChange={(e) => setRequiredPlan(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0e0e18] border border-[#2b2b40] text-white text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-400"
+              >
+                <option value="basic">Basic Tier (₹59/mo &amp; above)</option>
+                <option value="premium">Premium Tier (₹99/mo &amp; above)</option>
+                <option value="vip">VIP Tier (₹149/mo &amp; ₹1,299/yr exclusive)</option>
+              </select>
+            </div>
+          )}
+
           {/* Feature Flags: Ads, Download, Early Access, Exclusive */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[#232338]">
             <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
               <span className="text-xs font-semibold text-gray-300">Ads</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${adsAllowed ? 'bg-amber-950 text-amber-300 border border-amber-600' : 'bg-gray-800 text-gray-400'}`}>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  adsAllowed
+                    ? 'bg-amber-950 text-amber-300 border border-amber-600'
+                    : 'bg-gray-800 text-gray-400'
+                }`}
+              >
                 {adsAllowed ? 'ON' : 'OFF'}
               </span>
               <input
@@ -589,7 +1033,13 @@ export function AdminVideoForm({
 
             <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
               <span className="text-xs font-semibold text-gray-300">Download</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${downloadAllowed ? 'bg-emerald-950 text-emerald-300 border border-emerald-600' : 'bg-gray-800 text-gray-400'}`}>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  downloadAllowed
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-600'
+                    : 'bg-gray-800 text-gray-400'
+                }`}
+              >
                 {downloadAllowed ? 'ON' : 'OFF'}
               </span>
               <input
@@ -602,7 +1052,13 @@ export function AdminVideoForm({
 
             <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
               <span className="text-xs font-semibold text-gray-300">Early Access</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${earlyAccess ? 'bg-purple-950 text-purple-300 border border-purple-600' : 'bg-gray-800 text-gray-400'}`}>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  earlyAccess
+                    ? 'bg-purple-950 text-purple-300 border border-purple-600'
+                    : 'bg-gray-800 text-gray-400'
+                }`}
+              >
                 {earlyAccess ? 'ON' : 'OFF'}
               </span>
               <input
@@ -615,7 +1071,13 @@ export function AdminVideoForm({
 
             <label className="p-3 rounded-xl bg-[#0e0e18] border border-[#232338] flex items-center justify-between cursor-pointer">
               <span className="text-xs font-semibold text-gray-300">Exclusive</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${exclusive ? 'bg-rose-950 text-rose-300 border border-rose-600' : 'bg-gray-800 text-gray-400'}`}>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  exclusive
+                    ? 'bg-rose-950 text-rose-300 border border-rose-600'
+                    : 'bg-gray-800 text-gray-400'
+                }`}
+              >
                 {exclusive ? 'ON' : 'OFF'}
               </span>
               <input
@@ -628,37 +1090,88 @@ export function AdminVideoForm({
           </div>
         </div>
 
-        {/* SECTION 4: THUMBNAIL URL */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-            <span>Thumbnail Image URL</span>
-            <span className="text-[10px] text-gray-500 font-normal">Stored by URL</span>
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={thumbnailUrl}
-              onChange={(e) => setThumbnailUrl(e.target.value)}
-              placeholder="https://images.unsplash.com/... or paste image URL"
-              className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#141422] border border-[#27273c] text-white text-xs font-mono placeholder:text-gray-600 focus:outline-none focus:border-amber-500"
-            />
+        {/* SECTION 4: THUMBNAIL (FILE UPLOAD OR URL) */}
+        <div className="space-y-3 p-4 sm:p-5 rounded-2xl bg-[#141422] border border-[#232338]">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span>Video Thumbnail Poster</span>
+            </label>
+            <span className="text-[10px] text-gray-500 font-normal">File upload or URL</span>
           </div>
 
-          {/* Quick preset thumbnail pills */}
-          <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar">
-            <span className="text-[10px] text-gray-500 shrink-0">Sample Presets:</span>
-            {DEFAULT_THUMBNAILS.map((thumb, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setThumbnailUrl(thumb)}
-                className={`w-12 h-7 rounded-lg overflow-hidden border shrink-0 transition-transform ${
-                  thumbnailUrl === thumb ? 'ring-2 ring-amber-400 scale-105' : 'opacity-60 hover:opacity-100'
-                }`}
-              >
-                <img src={thumb} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            {/* Thumbnail Preview Thumbnail */}
+            <div className="w-24 h-16 rounded-xl overflow-hidden bg-black border border-[#2b2b40] shrink-0 relative">
+              <img
+                src={thumbnailPreview || thumbnailUrl || DEFAULT_THUMBNAILS[0]}
+                alt="Thumbnail"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Custom File Upload Button */}
+            <div className="flex-1 w-full space-y-2">
+              <div className="flex gap-2">
+                <input
+                  ref={thumbInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailFileChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => thumbInputRef.current?.click()}
+                  className="px-3.5 py-2 rounded-xl bg-[#1f1f32] hover:bg-[#282840] border border-[#32324c] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+                >
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Choose Image File</span>
+                </button>
+                <input
+                  type="url"
+                  value={thumbnailUrl}
+                  onChange={(e) => {
+                    setThumbnailUrl(e.target.value);
+                    if (thumbnailPreview) {
+                      URL.revokeObjectURL(thumbnailPreview);
+                      setThumbnailPreview(null);
+                    }
+                  }}
+                  placeholder="Or paste image URL (https://...)"
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#0e0e18] border border-[#27273c] text-white text-xs font-mono placeholder:text-gray-600 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Sample Presets */}
+              <div className="flex items-center gap-2 overflow-x-auto py-0.5 no-scrollbar">
+                <span className="text-[10px] text-gray-500 shrink-0">Presets:</span>
+                {DEFAULT_THUMBNAILS.map((thumb, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setThumbnailUrl(thumb);
+                      if (thumbnailPreview) {
+                        URL.revokeObjectURL(thumbnailPreview);
+                        setThumbnailPreview(null);
+                      }
+                    }}
+                    className={`w-10 h-6 rounded-md overflow-hidden border shrink-0 transition-transform ${
+                      thumbnailUrl === thumb && !thumbnailPreview
+                        ? 'ring-2 ring-amber-400 scale-105'
+                        : 'opacity-50 hover:opacity-100'
+                    }`}
+                  >
+                    <img
+                      src={thumb}
+                      alt={`Preset ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -741,7 +1254,9 @@ export function AdminVideoForm({
               className="w-4 h-4 rounded text-amber-500 bg-[#141422] border-gray-700 focus:ring-amber-500"
             />
             <span className="text-xs font-bold text-white">
-              {isPublished ? 'Status: Published (Visible to Visitors)' : 'Status: Draft (Hidden from Visitors)'}
+              {isPublished
+                ? 'Status: Published (Visible to Visitors)'
+                : 'Status: Draft (Hidden from Visitors)'}
             </span>
           </label>
 
@@ -765,8 +1280,12 @@ export function AdminVideoForm({
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Saving to Firebase...</span>
+                  <Loader2 className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>
+                    {uploadProgress && uploadProgress.percentage < 100
+                      ? `Uploading (${uploadProgress.percentage}%)...`
+                      : 'Saving to Firebase...'}
+                  </span>
                 </>
               ) : isEditMode ? (
                 <>
@@ -776,7 +1295,7 @@ export function AdminVideoForm({
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Publish Video</span>
+                  <span>Upload &amp; Publish Video</span>
                 </>
               )}
             </button>
@@ -793,11 +1312,13 @@ export function AdminVideoForm({
               Confirm Deletion
             </h3>
             <p className="text-xs text-gray-300 leading-relaxed">
-              Are you sure you want to remove <strong>"{title}"</strong> from the Firebase video catalogue?
+              Are you sure you want to permanently remove <strong>"{title}"</strong> from the Firebase video catalogue?
             </p>
-            <p className="text-[11px] text-amber-300/90 bg-amber-950/40 p-2.5 rounded-lg border border-amber-500/30 font-mono">
-              Note: This removes the metadata from your website. It will <strong>NOT</strong> delete the hosted video on AVCaption.com.
-            </p>
+            {initialVideo?.videoStoragePath && (
+              <p className="text-[11px] text-amber-300/90 bg-amber-950/40 p-2.5 rounded-lg border border-amber-500/30 font-mono">
+                The uploaded video file stored at <code>{initialVideo.videoStoragePath}</code> will also be deleted from Firebase Storage.
+              </p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -812,7 +1333,7 @@ export function AdminVideoForm({
                 onClick={handleDelete}
                 className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg"
               >
-                {isDeleting ? 'Deleting...' : 'Yes, Delete Record'}
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Video'}
               </button>
             </div>
           </div>

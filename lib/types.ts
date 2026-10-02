@@ -246,11 +246,13 @@ export interface VideoItem {
   seasonNumber: number;
   thumbnailUrl: string;
   posterUrl?: string;
+  videoSource?: 'firebase' | 'external';
   embedUrl?: string; // AVCaption responsive embed URL
-  videoUrl?: string; // AVCaption direct stream URL (optional)
+  videoUrl?: string; // Persistent video stream URL or AVCaption direct stream URL
   avcaptionUrl?: string;
-  videoStoragePath?: string; // internal storage path or reference
-  videoStreamUrl?: string; // signed/proxied streaming URL or sample
+  videoStoragePath?: string; // Firebase Storage object path (e.g., videos/series/vid_123.mp4)
+  thumbnailStoragePath?: string; // Firebase Storage thumbnail path
+  videoStreamUrl?: string; // streaming URL
   accessType: AccessType;
   requiredPlan: RequiredPlan | string;
   duration: string;
@@ -266,6 +268,7 @@ export interface VideoItem {
   status?: PublishingStatus;
   releaseDate?: string;
   createdBy?: string;
+  uploadedBy?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   isFeatured?: boolean;
@@ -273,6 +276,8 @@ export interface VideoItem {
   isNewEpisode?: boolean;
   downloadAllowed?: boolean;
   adsAllowed?: boolean;
+  earlyAccess?: boolean;
+  exclusive?: boolean;
   views: number;
   uniqueViews?: number;
   popularityScore?: number;

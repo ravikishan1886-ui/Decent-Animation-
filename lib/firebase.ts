@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import firebaseConfigJson from '../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -48,5 +49,16 @@ function initDatabase(): Database | null {
 }
 
 export const rtdb = initDatabase();
+
+function initStorage(): FirebaseStorage | null {
+  try {
+    return getStorage(app);
+  } catch (e) {
+    console.warn('Firebase Storage init fallback notice:', e);
+    return null;
+  }
+}
+
+export const storage = initStorage();
 
 export default app;

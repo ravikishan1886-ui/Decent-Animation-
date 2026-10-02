@@ -149,6 +149,8 @@ export function AdminContentManagement({ onOpenUpload, onEditVideo }: AdminConte
           adminEmail: user?.email,
           adminRole: profile?.role || 'admin',
           videoId: deleteConfirmVideo.id,
+          storagePath: deleteConfirmVideo.videoStoragePath,
+          thumbnailPath: deleteConfirmVideo.thumbnailStoragePath,
         }),
       });
       const data = await res.json();

@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAccess } from '@/lib/security';
+import fs from 'fs';
+import path from 'path';
+import { verifyAdminAccess } from '@/lib/admin-auth';
+
+function sanitizeFileName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const type = formData.get('type') as string; // 'thumbnail' | 'poster' | 'video'
-    const adminEmail = formData.get('adminEmail') as string;
-    const adminRole = formData.get('adminRole') as string;
+    const type = (formData.get('type') as string) || 'video'; // 'thumbnail' | 'poster' | 'video'
+    const adminEmail = (formData.get('adminEmail') as string) || req.headers.get('x-admin-email') || '';
+    const adminRole = (formData.get('adminRole') as string) || '';
 
     if (!verifyAdminAccess(adminEmail, adminRole)) {
       return NextResponse.json(
@@ -17,12 +35,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (!file) {
-      return NextResponse.json({ success: false, error: 'No file received' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'No file received for upload.' }, { status: 400 });
     }
 
-    const fileName = file.name;
-    const fileSize = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-    const extension = fileName.split('.').pop()?.toLowerCase();
+    const fileName = file.name || 'uploaded_media';
+    const cleanName = sanitizeFileName(fileName);
+    const extension = cleanName.split('.').pop()?.toLowerCase();
 
     if (type === 'thumbnail' || type === 'poster') {
       const allowedImageExts = ['jpg', 'jpeg', 'png', 'webp'];
@@ -33,42 +51,59 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Convert small images to base64 preview or provide storage reference
+      const targetDir = path.join(process.cwd(), 'public', 'uploads', 'thumbnails');
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+      const uniqueName = `thumb_${Date.now()}_${cleanName}`;
+      const dest = path.join(targetDir, uniqueName);
       const buffer = Buffer.from(await file.arrayBuffer());
-      const base64 = `data:${file.type || 'image/jpeg'};base64,${buffer.toString('base64')}`;
+      fs.writeFileSync(dest, buffer);
+
+      const downloadUrl = `/api/media/thumbnails/${uniqueName}`;
 
       return NextResponse.json({
         success: true,
         type: 'image',
         fileName,
-        fileSize,
-        url: base64,
-        storagePath: `thumbnails/${Date.now()}_${fileName}`,
-        message: 'Image uploaded and processed.',
+        fileSize: formatBytes(buffer.length),
+        url: downloadUrl,
+        storagePath: `thumbnails/${uniqueName}`,
+        message: 'Image uploaded and processed successfully.',
       });
     }
 
     if (type === 'video') {
-      const allowedVideoExts = ['mp4', 'webm', 'mov'];
+      const allowedVideoExts = ['mp4', 'webm', 'mov', 'mkv'];
       if (!extension || !allowedVideoExts.includes(extension)) {
         return NextResponse.json(
-          { success: false, error: `Invalid video format (.${extension}). Supported formats: MP4, WEBM, MOV.` },
+          { success: false, error: `Invalid video format (.${extension}). Supported formats: MP4, WEBM, MOV, MKV.` },
           { status: 400 }
         );
       }
+
+      const targetDir = path.join(process.cwd(), 'public', 'uploads', 'videos');
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+      const uniqueName = `vid_${Date.now()}_${cleanName}`;
+      const dest = path.join(targetDir, uniqueName);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      fs.writeFileSync(dest, buffer);
+
+      const downloadUrl = `/api/media/videos/${uniqueName}`;
 
       return NextResponse.json({
         success: true,
         type: 'video',
         fileName,
-        fileSize,
-        storagePath: `videos/master/${Date.now()}_${fileName}`,
-        streamUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-        duration: '22:30',
+        fileSize: formatBytes(buffer.length),
+        storagePath: `videos/master/${uniqueName}`,
+        streamUrl: downloadUrl,
+        downloadUrl,
+        videoUrl: downloadUrl,
         uploaded: true,
         processed: true,
         readyToPublish: true,
-        message: 'Video uploaded and processed successfully.',
+        message: 'Video file physically uploaded and stored permanently.',
       });
     }
 

@@ -162,7 +162,13 @@ export default function WatchPage() {
       if (video.accessType === 'free') {
         if (active) {
           setAccessGranted(true);
-          setPlaybackUrl(video.embedUrl || video.avcaptionUrl || video.videoStreamUrl || null);
+          const effectiveUrl =
+            video.videoUrl ||
+            video.videoStreamUrl ||
+            video.embedUrl ||
+            video.avcaptionUrl ||
+            null;
+          setPlaybackUrl(effectiveUrl);
           setIsVerifying(false);
         }
         return;
@@ -194,7 +200,15 @@ export default function WatchPage() {
         if (active) {
           if (res.ok && data?.allowed) {
             setAccessGranted(true);
-            setPlaybackUrl(data.embedUrl || data.playbackUrl || video.embedUrl || video.avcaptionUrl || null);
+            const resolvedUrl =
+              data.playbackUrl ||
+              data.videoUrl ||
+              video.videoUrl ||
+              video.videoStreamUrl ||
+              data.embedUrl ||
+              video.embedUrl ||
+              null;
+            setPlaybackUrl(resolvedUrl);
           } else {
             setAccessGranted(false);
             setDenyReason(data?.reason || 'Active subscriber plan required to unlock this episode.');
@@ -290,7 +304,25 @@ export default function WatchPage() {
     );
   }
 
-  const isEmbedPlayer = Boolean(playbackUrl && (playbackUrl.includes('embed') || playbackUrl.includes('avcaption') || playbackUrl.includes('iframe') || !playbackUrl.match(/\.(mp4|webm|m3u8)($|\?)/i)));
+  const isFirebaseStorage = Boolean(
+    video?.videoSource === 'firebase' ||
+    video?.videoStoragePath ||
+    (playbackUrl && (
+      playbackUrl.includes('firebasestorage.googleapis.com') ||
+      playbackUrl.startsWith('/api/media/') ||
+      playbackUrl.startsWith('/uploads/') ||
+      playbackUrl.match(/\.(mp4|webm|m3u8|mov|mkv)($|\?)/i)
+    ))
+  );
+
+  const isEmbedPlayer = !isFirebaseStorage && Boolean(
+    playbackUrl && (
+      playbackUrl.includes('embed') ||
+      playbackUrl.includes('avcaption') ||
+      playbackUrl.includes('iframe') ||
+      video?.videoSource === 'external'
+    ) && !playbackUrl.match(/\.(mp4|webm|m3u8|mov|mkv)($|\?)/i)
+  );
 
   return (
     <div className="min-h-screen bg-[#08080b] flex flex-col selection:bg-red-900 selection:text-white">
