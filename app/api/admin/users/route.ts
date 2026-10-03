@@ -146,67 +146,15 @@ export async function POST(req: NextRequest) {
     };
     let logMessage = '';
 
-    if (action === 'GIVE_PLAN' || action === 'CHANGE_PLAN') {
-      const selectedPlan = (plan || planId || 'premium-monthly').toLowerCase();
-      let tier: RequiredPlan = 'basic';
-      if (selectedPlan.includes('vip')) tier = 'vip';
-      else if (selectedPlan.includes('premium')) tier = 'premium';
-      else if (selectedPlan.includes('free')) tier = 'free';
-
-      let expiry = new Date();
-      if (customExpiryDate) {
-        expiry = new Date(customExpiryDate);
-      } else {
-        const numDays = days || durationDays ? Number(days || durationDays) : selectedPlan.includes('yearly') ? 365 : selectedPlan.includes('quarterly') ? 90 : 30;
-        expiry.setDate(now.getDate() + numDays);
-      }
-
+    if (action === 'TOGGLE_MUTE') {
+      const isCurrentlyMuted = Boolean(existingUser?.commentingBanned);
       updates = {
         ...updates,
-        plan: tier,
-        currentPlan: tier,
-        planId: selectedPlan,
-        planStartDate: now.toISOString(),
-        planExpiryDate: tier === 'free' ? null : expiry.toISOString(),
-        subscriptionStatus: tier === 'free' ? 'none' : 'active',
+        commentingBanned: !isCurrentlyMuted,
       };
-      logMessage = `Plan ${tier} assigned successfully to user ${targetId}`;
-    } else if (action === 'EXTEND_DAYS' || action === 'EXTEND_SUBSCRIPTION') {
-      const additionalDays = Number(days || durationDays || 30);
-      let currentExpiry = existingUser?.planExpiryDate ? new Date(existingUser.planExpiryDate) : new Date();
-      if (currentExpiry.getTime() < now.getTime()) {
-        currentExpiry = new Date();
-      }
-      currentExpiry.setDate(currentExpiry.getDate() + additionalDays);
-
-      updates = {
-        ...updates,
-        planExpiryDate: currentExpiry.toISOString(),
-        subscriptionStatus: 'active',
-      };
-      logMessage = `Extended plan by ${additionalDays} days for user ${targetId}`;
-    } else if (action === 'SET_EXPIRY') {
-      if (!customExpiryDate) {
-        return NextResponse.json({ error: 'Please provide a valid expiry date' }, { status: 400 });
-      }
-      const expiry = new Date(customExpiryDate);
-      updates = {
-        ...updates,
-        planExpiryDate: expiry.toISOString(),
-        subscriptionStatus: expiry.getTime() > now.getTime() ? 'active' : 'expired',
-      };
-      logMessage = `Updated plan expiry date to ${expiry.toLocaleDateString()}`;
-    } else if (action === 'REMOVE_PLAN' || action === 'CANCEL_PLAN') {
-      updates = {
-        ...updates,
-        plan: 'free',
-        currentPlan: 'free',
-        planId: null,
-        planStartDate: null,
-        planExpiryDate: null,
-        subscriptionStatus: 'none',
-      };
-      logMessage = `Membership plan removed for user ${targetId}`;
+      logMessage = !isCurrentlyMuted
+        ? `User @${existingUser?.username || targetId} has been muted from comments`
+        : `User @${existingUser?.username || targetId} commenting privileges restored`;
     } else if (action === 'CHANGE_ROLE') {
       updates = {
         ...updates,

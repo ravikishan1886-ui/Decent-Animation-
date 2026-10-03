@@ -81,17 +81,8 @@ export function normalizeVideoItem(raw: any, fallbackId?: string): VideoItem {
 
   const videoUrl = rawVideoUrl || rawEmbedUrl;
   const embedUrl = rawEmbedUrl || rawVideoUrl;
-  const accessType: AccessType =
-    raw.accessType === 'free'
-      ? 'free'
-      : raw.accessType === 'vip'
-      ? 'vip'
-      : raw.accessType === 'exclusive'
-      ? 'exclusive'
-      : 'subscription';
-
-  const requiredPlan: RequiredPlan | string =
-    raw.requiredPlan || (accessType === 'free' ? 'free' : accessType === 'vip' ? 'vip' : 'basic');
+  const accessType: AccessType = 'free';
+  const requiredPlan: RequiredPlan | string = 'free';
   const episodeNumber = Math.max(1, Number(raw.episodeNumber) || 1);
   const seasonNumber = Math.max(1, Number(raw.seasonNumber) || 1);
   const published = raw.published !== undefined ? Boolean(raw.published) : raw.status !== 'draft';

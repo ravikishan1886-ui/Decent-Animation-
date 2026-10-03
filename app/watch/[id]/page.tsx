@@ -8,7 +8,6 @@ import { Footer } from '@/components/Footer';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { VideoCard } from '@/components/VideoCard';
 import { VideoComments } from '@/components/VideoComments';
-import { SuperChatModal } from '@/components/SuperChatModal';
 import { VideoItem } from '@/lib/types';
 import { INITIAL_SEED_VIDEOS } from '@/lib/seed-data';
 import { useAuth } from '@/lib/auth-context';
@@ -37,7 +36,7 @@ export default function WatchPage() {
   const rawId = params?.id;
   const videoId = Array.isArray(rawId) ? rawId[0] : (rawId as string) || '';
 
-  const { user, isAdmin, isSubscriptionActive, subscriptionTier } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const [video, setVideo] = useState<VideoItem | null>(null);
   const [allVideos, setAllVideos] = useState<VideoItem[]>([]);
@@ -47,16 +46,12 @@ export default function WatchPage() {
   const [accessGranted, setAccessGranted] = useState<boolean>(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(true);
-  const [denyReason, setDenyReason] = useState<string>('');
-  const [requiredTier, setRequiredTier] = useState<string>('basic');
-  const [requiredPlanLabel, setRequiredPlanLabel] = useState<string>('Basic');
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<boolean>(false);
   const [resumeToast, setResumeToast] = useState<string | null>(null);
-  const [isSuperChatOpen, setIsSuperChatOpen] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -143,95 +138,20 @@ export default function WatchPage() {
     },
   });
 
-  // Verify access privileges
+  // Verify access privileges - all content is 100% free
   useEffect(() => {
-    let active = true;
+    if (!video) return;
 
-    async function verifyServerAccess() {
-      if (!video) {
-        if (active) {
-          setIsVerifying(false);
-          setAccessGranted(false);
-        }
-        return;
-      }
-
-      setIsVerifying(true);
-
-      // Free video access
-      if (video.accessType === 'free') {
-        if (active) {
-          setAccessGranted(true);
-          const effectiveUrl =
-            video.videoUrl ||
-            video.videoStreamUrl ||
-            video.embedUrl ||
-            video.avcaptionUrl ||
-            null;
-          setPlaybackUrl(effectiveUrl);
-          setIsVerifying(false);
-        }
-        return;
-      }
-
-      // Paid / VIP video access verification
-      try {
-        const res = await fetch('/api/video/access', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            videoId: video.id,
-            userPlanTier: subscriptionTier || 'none',
-            isSubscriptionActive: Boolean(isSubscriptionActive),
-            isAdmin: Boolean(isAdmin),
-            userId: user?.uid || null,
-          }),
-        });
-
-        const contentType = res.headers.get('content-type') || '';
-        let data: any = null;
-
-        if (contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          data = { allowed: false, reason: 'Subscription required' };
-        }
-
-        if (active) {
-          if (res.ok && data?.allowed) {
-            setAccessGranted(true);
-            const resolvedUrl =
-              data.playbackUrl ||
-              data.videoUrl ||
-              video.videoUrl ||
-              video.videoStreamUrl ||
-              data.embedUrl ||
-              video.embedUrl ||
-              null;
-            setPlaybackUrl(resolvedUrl);
-          } else {
-            setAccessGranted(false);
-            setDenyReason(data?.reason || 'Active subscriber plan required to unlock this episode.');
-            setRequiredTier(data?.requiredTier || 'basic');
-            setRequiredPlanLabel(typeof video.requiredPlan === 'string' ? video.requiredPlan.toUpperCase() : 'VIP / PREMIUM');
-          }
-          setIsVerifying(false);
-        }
-      } catch (e) {
-        if (active) {
-          setAccessGranted(false);
-          setDenyReason('Connection notice: Please ensure your account has an active plan.');
-          setIsVerifying(false);
-        }
-      }
-    }
-
-    verifyServerAccess();
-
-    return () => {
-      active = false;
-    };
-  }, [video, subscriptionTier, isSubscriptionActive, isAdmin, user?.uid]);
+    setAccessGranted(true);
+    setIsVerifying(false);
+    const effectiveUrl =
+      video.videoUrl ||
+      video.videoStreamUrl ||
+      video.embedUrl ||
+      video.avcaptionUrl ||
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    setPlaybackUrl(effectiveUrl);
+  }, [video]);
 
   const handleDownload = async () => {
     if (!video) return;
@@ -247,8 +167,6 @@ export default function WatchPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId: video.id,
-          userPlanTier: subscriptionTier || 'none',
-          isSubscriptionActive: Boolean(isSubscriptionActive),
           isAdmin: Boolean(isAdmin),
           userId: user.uid,
         }),
@@ -378,71 +296,10 @@ export default function WatchPage() {
               )}
             </div>
           ) : (
-            /* Subscription Locked Paywall Screen (AVCaption Embed URL is Protected) */
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-black via-[#0d0d16] to-[#12121e] p-6 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-red-950/60 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_30px_rgba(212,175,55,0.25)]">
-                {requiredTier === 'vip' || video.accessType === 'vip' ? (
-                  <Crown className="w-8 h-8 text-amber-400" />
-                ) : (
-                  <Lock className="w-8 h-8 text-amber-400" />
-                )}
-              </div>
-
-              <div className="max-w-md space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold uppercase tracking-wider">
-                  {requiredTier === 'vip' || video.accessType === 'vip' ? (
-                    <>
-                      <Crown className="w-3.5 h-3.5 text-amber-400" />
-                      <span>👑 VIP Content</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>🔒 Premium Content</span>
-                    </>
-                  )}
-                </div>
-
-                <h2 className="text-xl sm:text-2xl font-black text-white">
-                  {requiredTier === 'vip' || video.accessType === 'vip'
-                    ? '👑 VIP Content'
-                    : '🔒 Premium Content'}
-                </h2>
-
-                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-                  {requiredTier === 'vip' || video.accessType === 'vip'
-                    ? 'This episode is available to VIP members.'
-                    : subscriptionTier === 'basic'
-                    ? 'Upgrade to Premium or VIP to watch this episode.'
-                    : 'This episode requires a Premium or VIP subscription.'}
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-                <Link
-                  href={`/subscription?videoId=${video.id}`}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-amber-600 hover:brightness-110 active:scale-98 text-white font-bold text-xs sm:text-sm shadow-xl shadow-red-900/40 flex items-center gap-2 transition-all"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>
-                    {requiredTier === 'vip' || video.accessType === 'vip'
-                      ? 'Upgrade to VIP'
-                      : subscriptionTier === 'basic'
-                      ? 'Upgrade'
-                      : 'View Plans'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                {!user && (
-                  <Link
-                    href={`/login?redirect=/watch/${video.id}`}
-                    className="px-5 py-3 rounded-xl bg-[#181826] hover:bg-[#202032] text-gray-300 hover:text-white font-semibold text-xs border border-[#2b2b40] transition-colors"
-                  >
-                    Log In to Existing Account
-                  </Link>
-                )}
-              </div>
+            /* Stream Loading / Connecting State */
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black p-6 text-center space-y-3">
+              <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-mono text-gray-400">Connecting to High-Speed Video Stream...</p>
             </div>
           )}
         </div>
@@ -480,12 +337,10 @@ export default function WatchPage() {
                     <span>Ep {ep.episodeNumber}</span>
                     <span
                       className={`text-[9px] px-1.5 py-0.2 rounded font-sans ${
-                        isFree
-                          ? isCurrent ? 'bg-black/20 text-black' : 'bg-emerald-950/70 text-emerald-300'
-                          : isCurrent ? 'bg-black/20 text-black' : 'bg-amber-950/70 text-amber-300'
+                        isCurrent ? 'bg-black/20 text-black' : 'bg-emerald-950/70 text-emerald-300'
                       }`}
                     >
-                      {isFree ? 'FREE' : 'VIP'}
+                      FREE
                     </span>
                   </Link>
                 );
@@ -507,8 +362,8 @@ export default function WatchPage() {
               <span className="px-2 py-0.5 rounded bg-[#181824] text-gray-400">
                 {video.language || 'Hindi Dubbed'}
               </span>
-              <span className="px-2 py-0.5 rounded bg-amber-950/40 border border-amber-500/40 text-amber-300 font-mono text-[11px] uppercase">
-                {video.accessType.toUpperCase()} TIER
+              <span className="px-2 py-0.5 rounded bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] uppercase">
+                FREE STREAM
               </span>
               <span className="px-2 py-0.5 rounded bg-zinc-800 text-gray-300 font-mono text-[10px]">
                 AVCaption Hosted
@@ -526,7 +381,7 @@ export default function WatchPage() {
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-400">Resolution</p>
                   <p className="text-xs font-bold text-white font-mono truncate">
-                    {subscriptionTier === 'vip' ? '4K UltraHD' : subscriptionTier === 'premium' ? '1080p FHD' : '720p HD'}
+                    1080p FHD / 4K
                   </p>
                 </div>
               </div>
@@ -536,7 +391,7 @@ export default function WatchPage() {
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-400">Experience</p>
                   <p className="text-xs font-bold text-white truncate">
-                    {subscriptionTier === 'vip' || subscriptionTier === 'premium' ? '100% Ad-Free' : 'Standard'}
+                    100% Free &amp; Ad-Free
                   </p>
                 </div>
               </div>
@@ -634,17 +489,6 @@ export default function WatchPage() {
           </div>
         )}
       </main>
-
-      {/* Super Chat Modal */}
-      <SuperChatModal
-        isOpen={isSuperChatOpen}
-        onClose={() => setIsSuperChatOpen(false)}
-        targetId={video.id}
-        targetType="video"
-        onSuccess={() => {
-          setIsLiked(true);
-        }}
-      />
 
       <Footer />
       <MobileBottomNav />

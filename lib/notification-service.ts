@@ -41,7 +41,6 @@ export interface SendResult {
   channel: 'email' | 'push';
   provider: 'resend' | 'sendgrid' | 'direct_gateway';
   error?: string;
-  simulated?: boolean;
 }
 
 /**
@@ -130,7 +129,6 @@ export async function sendTransactionalEmail(options: SendEmailOptions): Promise
         messageId: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         channel: 'email',
         provider: 'direct_gateway',
-        simulated: true,
       };
     }
 

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { SubscriptionCountdown } from '@/components/SubscriptionCountdown';
 import {
   User,
   Crown,
@@ -143,8 +142,8 @@ export default function ProfilePage() {
                     Admin
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold uppercase">
-                    {profile?.plan || subscriptionTier || 'Free'}
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold uppercase">
+                    Free Unrestricted
                   </span>
                 )}
               </div>
@@ -155,21 +154,16 @@ export default function ProfilePage() {
                   Joined: {new Date(profile.createdAt).toLocaleDateString()}
                 </p>
               )}
-              {profile?.planExpiryDate && (
-                <p className="text-[10px] text-amber-400 font-mono">
-                  Plan Expires: {new Date(profile.planExpiryDate).toLocaleDateString()}
-                </p>
-              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <Link
-              href="/subscription"
+              href="/reels"
               className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-red-600 to-amber-600 hover:brightness-110 shadow-md inline-flex items-center gap-1.5"
             >
-              <Crown className="w-4 h-4" />
-              <span>Manage Plan</span>
+              <Sparkles className="w-4 h-4" />
+              <span>Watch Reels</span>
             </Link>
             <button
               onClick={signOut}
@@ -194,34 +188,47 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Subscription Live Status */}
+        {/* Account Access Status */}
         <div className="space-y-2">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            Membership Status &amp; Time Remaining
+            Membership Status
           </h3>
-          <SubscriptionCountdown
-            expiryDate={profile?.planExpiryDate || profile?.subscriptionExpiry}
-            planId={profile?.planId || (typeof profile?.plan === 'string' ? profile.plan : undefined) || (typeof profile?.currentPlan === 'string' ? profile.currentPlan : undefined)}
-            paymentSource={profile?.paymentSource || 'NONE'}
-          />
+          <div className="p-5 rounded-2xl bg-[#13131e] border border-[#232334] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  100% Free Lifetime Cultivator
+                </h4>
+                <p className="text-[11px] text-gray-400">
+                  Unrestricted access to all Chinese animation series, episodes, and reels.
+                </p>
+              </div>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+              Active Free
+            </span>
+          </div>
         </div>
 
-        {/* Badges & Super Chat stats */}
+        {/* Badges & Cultivator Achievements */}
         <div className="p-6 rounded-3xl bg-[#12121a] border border-[#242436] space-y-4">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" />
-            Patron Achievements &amp; Badges
+            Cultivator Achievements &amp; Badges
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-4 rounded-2xl bg-[#161624] border border-[#262638] space-y-1">
-              <p className="text-xs text-gray-400">Total Super Chat Contributions</p>
-              <p className="text-xl font-black text-pink-400 font-mono">
-                ₹{profile?.superChatTotal || 0}
+              <p className="text-xs text-gray-400">Streaming Access Level</p>
+              <p className="text-lg font-black text-emerald-400 font-mono">
+                100% UNRESTRICTED
               </p>
-              <Link href="/leaderboard" className="text-[11px] text-amber-400 font-bold hover:underline">
-                View Cultivator Leaderboard →
-              </Link>
+              <p className="text-[11px] text-gray-400">
+                All 4K &amp; 1080p episodes, reels, and offline downloads are free.
+              </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-[#161624] border border-[#262638] space-y-2">

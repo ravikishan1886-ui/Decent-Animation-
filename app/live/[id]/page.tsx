@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
-import { SuperChatModal } from '@/components/SuperChatModal';
 import { LiveStreamItem, LiveChatMessage } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -19,6 +18,7 @@ import {
   ShieldCheck,
   AlertCircle,
   MessageSquare,
+  Share2,
 } from 'lucide-react';
 
 export default function LiveRoomPage() {
@@ -27,13 +27,13 @@ export default function LiveRoomPage() {
   const rawId = params?.id;
   const liveId = Array.isArray(rawId) ? rawId[0] : (rawId as string) || '';
 
-  const { user, profile, isAdmin, subscriptionTier, isSubscriptionActive } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
 
   const [stream, setStream] = useState<LiveStreamItem | null>(null);
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);
   const [inputText, setInputText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [isSuperChatOpen, setIsSuperChatOpen] = useState<boolean>(false);
+  const [copiedToast, setCopiedToast] = useState<boolean>(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -95,7 +95,7 @@ export default function LiveRoomPage() {
           userEmail: user.email,
           username: profile?.name || user.displayName || user.email?.split('@')[0] || 'Cultivator',
           content: inputText.trim(),
-          badge: isAdmin ? 'VIP Grandmaster' : subscriptionTier === 'vip' ? 'VIP Cultivator' : 'Dao Disciple',
+          badge: isAdmin ? 'Admin' : 'Cultivator',
         }),
       });
 
@@ -112,14 +112,7 @@ export default function LiveRoomPage() {
     }
   };
 
-  const streamTier = stream?.accessTier || stream?.accessLevel || 'free';
-  const hasAccess =
-    !stream ||
-    streamTier === 'free' ||
-    streamTier === 'public' ||
-    isAdmin ||
-    (streamTier === 'premium' && (subscriptionTier === 'premium' || subscriptionTier === 'vip')) ||
-    (streamTier === 'vip' && subscriptionTier === 'vip');
+  const hasAccess = true;
 
   return (
     <div className="min-h-screen bg-[#08080b] flex flex-col selection:bg-red-900 selection:text-white">
@@ -193,11 +186,17 @@ export default function LiveRoomPage() {
 
               <div className="shrink-0 flex items-center gap-2 w-full sm:w-auto">
                 <button
-                  onClick={() => setIsSuperChatOpen(true)}
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(window.location.href);
+                      setCopiedToast(true);
+                      setTimeout(() => setCopiedToast(false), 2500);
+                    }
+                  }}
                   className="w-full sm:w-auto px-5 py-3 rounded-2xl text-xs font-bold text-white bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 shadow-[0_0_20px_rgba(201,42,42,0.4)] flex items-center justify-center gap-2"
                 >
-                  <Heart className="w-4 h-4 fill-white" />
-                  <span>Send Super Chat</span>
+                  <Share2 className="w-4 h-4" />
+                  <span>{copiedToast ? 'Link Copied!' : 'Share Stream'}</span>
                 </button>
               </div>
             </div>
@@ -246,11 +245,6 @@ export default function LiveRoomPage() {
                               {m.badge}
                             </span>
                           )}
-                          {isSuper && (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500 text-black text-[9px] font-black font-mono">
-                              ₹{m.amount}
-                            </span>
-                          )}
                         </div>
                         <span className="text-[9px] text-gray-500 font-mono">
                           {new Date(m.createdAt).toLocaleTimeString([], {
@@ -259,7 +253,7 @@ export default function LiveRoomPage() {
                           })}
                         </span>
                       </div>
-                      <p className={`leading-relaxed ${isSuper ? 'text-amber-200 font-bold' : 'text-gray-300'}`}>
+                      <p className="leading-relaxed text-gray-300">
                         {m.content}
                       </p>
                     </div>
@@ -295,16 +289,6 @@ export default function LiveRoomPage() {
           </div>
         </div>
       </main>
-
-      <SuperChatModal
-        isOpen={isSuperChatOpen}
-        onClose={() => setIsSuperChatOpen(false)}
-        targetId={liveId}
-        targetType="live"
-        onSuccess={() => {
-          fetchChatMessages();
-        }}
-      />
 
       <Footer />
       <MobileBottomNav />

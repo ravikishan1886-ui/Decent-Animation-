@@ -502,89 +502,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const applySubscription = async (planId: string, durationDays: number, paymentId: string) => {
-    if (!user) return;
-    const now = new Date();
-    const expiry = new Date();
-    expiry.setDate(now.getDate() + durationDays);
-
-    const updates = {
-      planId,
-      subscriptionStatus: 'active' as SubscriptionStatus,
-      subscriptionExpiry: expiry.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-
-    if (profile) {
-      const updatedProfile = { ...profile, ...updates };
-      setProfile(updatedProfile);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(
-          'decent_user_session',
-          JSON.stringify({ user, profile: updatedProfile })
-        );
-      }
-    }
-
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, updates, { merge: true });
-
-      // Save subscription record
-      const subId = `sub_${Date.now()}_${user.uid.slice(0, 4)}`;
-      const subRef = doc(db, 'subscriptions', subId);
-      await setDoc(subRef, {
-        id: subId,
-        userId: user.uid,
-        userEmail: user.email || '',
-        planId,
-        status: 'active',
-        startDate: now.toISOString(),
-        expiryDate: expiry.toISOString(),
-        paymentId,
-        orderId: `order_${Date.now()}`,
-        createdAt: now.toISOString(),
-      });
-
-      // Save payment record
-      const payRef = doc(db, 'payments', paymentId);
-      await setDoc(payRef, {
-        id: paymentId,
-        userId: user.uid,
-        userEmail: user.email || '',
-        planId,
-        paymentId,
-        status: 'verified',
-        createdAt: now.toISOString(),
-      });
-    } catch (err) {
-      console.warn('Firestore subscription update notice:', err);
-    }
-  };
-
-  // Derive subscription tier
-  const isSubscriptionActive = Boolean(
-    profile &&
-      profile.subscriptionStatus === 'active' &&
-      profile.subscriptionExpiry &&
-      new Date(profile.subscriptionExpiry) > new Date()
-  );
-
-  let subscriptionTier: RequiredPlan | 'none' = 'none';
-  if (isSubscriptionActive && profile?.planId) {
-    if (profile.planId.includes('vip')) {
-      subscriptionTier = 'vip';
-    } else if (profile.planId.includes('premium')) {
-      subscriptionTier = 'premium';
-    } else if (profile.planId.includes('basic')) {
-      subscriptionTier = 'basic';
-    }
-  }
+  // In 100% Free Streaming model, all cultivators have unrestricted access
+  const isSubscriptionActive = true;
+  const subscriptionTier: RequiredPlan | 'none' = 'free';
 
   const isAdmin = Boolean(
     profile?.role === 'admin' ||
     isDesignatedAdmin(user?.email)
   );
+
+  const applySubscription = async () => {
+    // No-op: all content is free
+  };
 
   return (
     <AuthContext.Provider

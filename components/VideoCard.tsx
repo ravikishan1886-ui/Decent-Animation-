@@ -3,19 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { VideoItem } from '@/lib/types';
-import { Play, Lock, Crown, Sparkles, Clock, Eye } from 'lucide-react';
+import { Play, Clock, Eye } from 'lucide-react';
 
 interface VideoCardProps {
   video: VideoItem;
   userHasAccess?: boolean;
 }
 
-export function VideoCard({ video, userHasAccess = true }: VideoCardProps) {
-  const isFree = video.accessType === 'free';
-  const isVIP = video.accessType === 'vip';
-  const isExclusive = video.accessType === 'exclusive';
-  const isSubscription = video.accessType === 'subscription';
-
+export function VideoCard({ video }: VideoCardProps) {
   return (
     <Link
       href={`/watch/${video.id}`}
@@ -35,28 +30,12 @@ export function VideoCard({ video, userHasAccess = true }: VideoCardProps) {
 
         {/* Badges on Top */}
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
-          {isFree && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-emerald-500/90 text-white shadow-md">
-              Free
-            </span>
-          )}
-          {isSubscription && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-blue-600/90 text-white shadow-md">
-              Subscription
-            </span>
-          )}
-          {isExclusive && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-gradient-to-r from-purple-600 to-red-600 text-white shadow-md flex items-center gap-1">
-              <Sparkles className="w-2.5 h-2.5" />
-              Exclusive
-            </span>
-          )}
-          {isVIP && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500 to-yellow-600 text-black font-extrabold shadow-md flex items-center gap-1">
-              <Crown className="w-2.5 h-2.5 fill-black" />
-              VIP
-            </span>
-          )}
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-emerald-500/90 text-white shadow-md">
+            Free
+          </span>
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase bg-black/60 border border-white/20 text-gray-200 shadow-md">
+            HD
+          </span>
         </div>
 
         {/* Duration Chip */}
@@ -68,11 +47,7 @@ export function VideoCard({ video, userHasAccess = true }: VideoCardProps) {
         {/* Hover Play Button Overlay */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40">
           <div className="w-12 h-12 rounded-full bg-gradient-to-r from-[#c92a2a] to-amber-600 flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-            {!userHasAccess && !isFree ? (
-              <Lock className="w-5 h-5 text-amber-200" />
-            ) : (
-              <Play className="w-5 h-5 fill-white ml-0.5" />
-            )}
+            <Play className="w-5 h-5 fill-white ml-0.5" />
           </div>
         </div>
       </div>
@@ -98,8 +73,8 @@ export function VideoCard({ video, userHasAccess = true }: VideoCardProps) {
             {video.language}
           </span>
           <div className="flex items-center gap-1">
-            <Eye className="w-3 h-3 text-gray-400" />
-            <span>{(video.views / 1000).toFixed(0)}k</span>
+            <Eye className="w-3.5 h-3.5 text-gray-500" />
+            <span className="font-mono">{video.views ? video.views.toLocaleString() : 0}</span>
           </div>
         </div>
       </div>

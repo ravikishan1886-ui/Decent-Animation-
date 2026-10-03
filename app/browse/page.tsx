@@ -9,7 +9,6 @@ import { ContinueWatchingSection } from '@/components/ContinueWatchingSection';
 import { INITIAL_SEED_VIDEOS } from '@/lib/seed-data';
 import {
   DONGHUA_GENRES,
-  DONGHUA_ACCESS_TYPES,
   DONGHUA_LANGUAGES,
   SortOption,
   VideoItem,
@@ -73,12 +72,6 @@ export default function BrowsePage() {
           }
           if (selectedGenre !== 'All' && v.genre !== selectedGenre && v.category !== selectedGenre) {
             return false;
-          }
-          if (selectedAccess !== 'All') {
-            const acc = selectedAccess.toLowerCase();
-            if (acc === 'free' && v.accessType !== 'free') return false;
-            if ((acc === 'vip' || acc === 'premium') && v.accessType !== 'vip') return false;
-            if (acc === 'exclusive' && v.accessType !== 'exclusive') return false;
           }
           if (selectedLanguage !== 'All') {
             const lang = selectedLanguage.toLowerCase();
@@ -167,21 +160,10 @@ export default function BrowsePage() {
         <div className="p-4 sm:p-5 rounded-2xl bg-[#101018] border border-[#232334] mb-8 space-y-4 shadow-xl">
           {/* Top Filter Bar: Access Type & Sort Dropdowns */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Access Types Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-zinc-950 border border-zinc-800">
-              {DONGHUA_ACCESS_TYPES.map((access) => (
-                <button
-                  key={access}
-                  onClick={() => setSelectedAccess(access)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    selectedAccess === access
-                      ? 'bg-gradient-to-r from-[#c92a2a] to-amber-600 text-white shadow'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {access === 'All' ? 'All Access' : access}
-                </button>
-              ))}
+            {/* Free Streaming Sanctuary Indicator */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>100% Free Streaming Sanctuary • All Episodes Unlocked</span>
             </div>
 
             {/* Selects: Language & Sort By */}

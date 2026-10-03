@@ -149,22 +149,10 @@ export default function UserDashboardPage() {
                 </div>
                 <p className="text-xs text-zinc-400 font-mono">{user.email}</p>
                 <div className="pt-1 flex items-center gap-2 flex-wrap">
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                      isSubscriptionActive
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : 'bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    <Crown className="w-3 h-3 text-amber-400" />
-                    Subscription: {isSubscriptionActive ? `${subscriptionTier.toUpperCase()} ACTIVE` : 'FREE PLAN'}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    100% Free Unrestricted Cultivator
                   </span>
-
-                  {isSubscriptionActive && profile?.subscriptionExpiry && (
-                    <span className="text-xs text-zinc-400 font-mono">
-                      Expires: {new Date(profile.subscriptionExpiry).toLocaleDateString()}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -180,10 +168,10 @@ export default function UserDashboardPage() {
               </button>
 
               <Link
-                href="/subscription"
+                href="/reels"
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-red-600 to-amber-600 hover:brightness-110 shadow"
               >
-                {isSubscriptionActive ? 'Extend Plan' : 'Upgrade to VIP'}
+                Watch Reels Feed
               </Link>
 
               {isAdmin && (
@@ -206,29 +194,27 @@ export default function UserDashboardPage() {
           </div>
         </div>
 
-        {/* Active Subscription Privileges Card */}
+        {/* Free Cultivator Privileges Card */}
         <div className="p-6 rounded-2xl bg-[#11111a] border border-[#232334] space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e1e2c] pb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-500 flex items-center justify-center text-black font-extrabold shadow">
-                <Crown className="w-5 h-5" />
+                <Sparkles className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  Membership &amp; Cultivation Tier
+                  Membership &amp; Cultivation Status
                 </h3>
                 <p className="text-xs text-zinc-400">
-                  {isSubscriptionActive
-                    ? `Active ${subscriptionTier.toUpperCase()} Member with Unrestricted Streaming`
-                    : 'Free Tier (Standard Definition, Ads enabled)'}
+                  Full unrestricted access to all 4K &amp; 1080p Donghua series, episodes, and reels.
                 </p>
               </div>
             </div>
             <Link
-              href="/subscription"
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-red-600 to-amber-600 hover:brightness-110 shadow shrink-0 self-start sm:self-auto"
+              href="/browse"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-amber-400 to-yellow-300 hover:brightness-110 shadow shrink-0 self-start sm:self-auto"
             >
-              {isSubscriptionActive ? 'Extend / Upgrade Plan' : 'Get VIP Pass (from ₹59)'}
+              Browse All Series
             </Link>
           </div>
 
@@ -237,23 +223,23 @@ export default function UserDashboardPage() {
               <span className="text-[11px] text-zinc-400 block font-medium">Streaming Quality</span>
               <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                {isSubscriptionActive ? '4K UHD & 1080p' : 'Standard 720p'}
+                4K UHD &amp; 1080p
               </span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[#161622] border border-[#252536] space-y-1">
-              <span className="text-[11px] text-zinc-400 block font-medium">VIP Episodes</span>
-              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                <Crown className="w-3.5 h-3.5" />
-                {isSubscriptionActive ? 'Full Access' : 'Locked'}
+              <span className="text-[11px] text-zinc-400 block font-medium">All Episodes &amp; Reels</span>
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                100% Free
               </span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[#161622] border border-[#252536] space-y-1">
-              <span className="text-[11px] text-zinc-400 block font-medium">Ad Experience</span>
+              <span className="text-[11px] text-zinc-400 block font-medium">Community Access</span>
               <span className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                {isSubscriptionActive ? '100% Ad-Free' : 'Standard Ads'}
+                Full Comments &amp; Likes
               </span>
             </div>
 

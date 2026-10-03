@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminAccess } from '@/lib/security';
+import { verifyAdminAccess } from '@/lib/admin-auth';
 
 export async function POST(req: NextRequest) {
   try {

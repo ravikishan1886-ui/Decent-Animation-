@@ -42,10 +42,10 @@ export function Navbar() {
 
   const navLinks = [
     { label: 'Home', href: '/' },
+    { label: 'Reels', href: '/reels', badge: 'NEW' },
     { label: 'Browse', href: '/browse' },
     { label: 'Live', href: '/live', badge: 'LIVE' },
     { label: 'Leaderboard', href: '/leaderboard' },
-    { label: 'Subscriptions', href: '/subscription' },
   ];
 
   return (
@@ -136,7 +136,7 @@ export function Navbar() {
                     {profile?.name || user.displayName || user.email?.split('@')[0]}
                   </p>
                   <p className="text-[10px] text-amber-400 font-mono mt-0.5 uppercase">
-                    {isAdmin ? 'Admin' : isSubscriptionActive ? subscriptionTier : 'Free'}
+                    {isAdmin ? 'Admin' : 'Cultivator'}
                   </p>
                 </div>
               </button>
@@ -150,14 +150,7 @@ export function Navbar() {
                   <div className="px-4 py-2 border-b border-[#222230]">
                     <p className="text-xs text-gray-400">Signed in as</p>
                     <p className="text-sm font-semibold text-white truncate">{user.email}</p>
-                    {isSubscriptionActive ? (
-                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        <Crown className="w-3 h-3 text-amber-400" />
-                        {subscriptionTier} Active
-                      </span>
-                    ) : (
-                      <span className="inline-block mt-1 text-[10px] text-gray-400">Free Cultivator</span>
-                    )}
+                    <span className="inline-block mt-1 text-[10px] text-emerald-400 font-medium">Free Unrestricted Access</span>
                   </div>
 
                   <Link
@@ -165,7 +158,7 @@ export function Navbar() {
                     className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#1a1a28] transition-colors"
                   >
                     <User className="w-4 h-4 text-gray-400" />
-                    Account &amp; Countdown
+                    Account Settings
                   </Link>
 
                   <Link
@@ -182,14 +175,6 @@ export function Navbar() {
                   >
                     <Trophy className="w-4 h-4 text-amber-400" />
                     Hall of Fame
-                  </Link>
-
-                  <Link
-                    href="/subscription"
-                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#1a1a28] transition-colors"
-                  >
-                    <Crown className="w-4 h-4 text-amber-400" />
-                    Manage Plans
                   </Link>
 
                   {isAdmin && (

@@ -1,7 +1,7 @@
-export type AccessType = 'free' | 'subscription' | 'exclusive' | 'vip';
+export type AccessType = 'free';
 export type RequiredPlan = 'free' | 'basic' | 'premium' | 'vip';
 export type UserRole = 'user' | 'admin';
-export type SubscriptionStatus = 'none' | 'active' | 'expired' | 'cancelled';
+export type SubscriptionStatus = 'active' | 'none' | 'expired' | 'cancelled';
 export type PlanDuration = 'monthly' | 'quarterly' | 'yearly';
 export type ContentType = 'series' | 'episode' | 'movie' | 'special';
 export type PublishingStatus = 'draft' | 'published' | 'scheduled';
@@ -38,16 +38,16 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   profileImage?: string;
-  plan?: RequiredPlan | string;
-  currentPlan?: RequiredPlan | string;
+  plan?: string;
+  currentPlan?: string;
   planId?: string;
   planStartDate?: string | null;
   planExpiryDate?: string | null;
   lastLogin?: string;
-  subscriptionStatus: SubscriptionStatus;
+  subscriptionStatus?: SubscriptionStatus;
   subscriptionStart?: string;
   subscriptionExpiry?: string;
-  paymentSource?: 'RAZORPAY' | 'ADMIN_GRANTED' | 'MANUAL' | 'NONE';
+  paymentSource?: string;
   superChatTotal?: number;
   badges?: string[];
   showOnLeaderboard?: boolean;
@@ -228,6 +228,43 @@ export interface UserBadge {
   icon: string;
   awardedAt: string;
   source: string;
+}
+
+export interface ReelItem {
+  id: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  title: string;
+  description?: string;
+  creatorId?: string;
+  creatorName?: string;
+  seriesId?: string;
+  seriesName?: string;
+  episodeId?: string;
+  episodeNumber?: number | string;
+  hashtags?: string[];
+  accessType?: 'free' | 'vip';
+  status?: 'draft' | 'published';
+  publishedAt?: string;
+  createdAt?: string;
+  views?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  savesCount?: number;
+}
+
+export interface ReelCommentItem {
+  id: string;
+  reelId: string;
+  userId: string;
+  username: string;
+  userEmail?: string;
+  profileImage?: string;
+  userPlan?: RequiredPlan;
+  text: string;
+  likesCount?: number;
+  createdAt: string;
 }
 
 export interface VideoItem {

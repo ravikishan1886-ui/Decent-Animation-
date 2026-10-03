@@ -47,9 +47,6 @@ export default function HomePage() {
   const featured = videos[0] || INITIAL_SEED_VIDEOS[0];
   const popular = videos.filter((v) => v.views > 100000);
   const latestEpisodes = [...videos].sort((a, b) => b.episodeNumber - a.episodeNumber);
-  const freeToWatch = videos.filter((v) => v.accessType === 'free');
-  const premiumEpisodes = videos.filter((v) => v.accessType === 'subscription' || v.accessType === 'exclusive');
-  const exclusiveVip = videos.filter((v) => v.accessType === 'vip');
 
   const activeAnnouncement = announcements.find((a) => a.active);
 
@@ -155,34 +152,14 @@ export default function HomePage() {
             viewAllHref="/browse?filter=latest"
           />
 
-          {/* Free to Watch Row */}
+          {/* Cultivation Masterpieces Row */}
           <ContentRow
-            title="Free to Watch"
-            subtitle="No subscription required. Start your cultivation journey instantly"
-            badge="100% Free"
-            videos={freeToWatch}
-            viewAllHref="/browse?filter=free"
+            title="Cultivation &amp; Xianxia Epics"
+            subtitle="Top-rated heavenly tribulation battles, martial souls, and immortal realms"
+            badge="Featured"
+            videos={videos}
+            viewAllHref="/browse?genre=Cultivation"
           />
-
-          {/* Premium & Exclusive Content Row */}
-          <ContentRow
-            title="Premium & Exclusive Sagas"
-            subtitle="High-bitrate 1080p / 4K master streams for verified subscribers"
-            badge="Premium"
-            videos={premiumEpisodes}
-            viewAllHref="/browse?filter=premium"
-          />
-
-          {/* VIP Only Realm */}
-          {exclusiveVip.length > 0 && (
-            <ContentRow
-              title="VIP Cultivator Realm"
-              subtitle="Early access first-window premieres for VIP Yearly members"
-              badge="VIP Only"
-              videos={exclusiveVip}
-              viewAllHref="/browse?filter=vip"
-            />
-          )}
         </div>
       </main>
 

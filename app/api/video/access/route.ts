@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkVideoAccess } from '@/lib/security';
 import { fetchVideoById } from '@/lib/video-service';
 import { loadServerVideos } from '@/lib/video-store';
 import { VideoItem } from '@/lib/types';
@@ -13,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    const { videoId, userPlanTier, isSubscriptionActive, isAdmin, userId } = body;
+    const { videoId, userId } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Missing videoId' }, { status: 400 });
@@ -30,30 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
-    const accessType = video.accessType || 'subscription';
-
-    // Verify access server-side
-    const accessCheck = checkVideoAccess(
-      accessType,
-      userPlanTier || 'none',
-      Boolean(isSubscriptionActive),
-      Boolean(isAdmin)
-    );
-
-    if (!accessCheck.hasAccess) {
-      return NextResponse.json(
-        {
-          allowed: false,
-          reason: accessCheck.reason,
-          requiredTier: accessCheck.requiredTier,
-          streamUrl: null,
-          requiredPlan: video.requiredPlan,
-        },
-        { status: 403 }
-      );
-    }
-
-    // Authorized: return real persistent video URL (direct stream for Firebase Storage or embed for external)
+    // All videos are 100% free and accessible to all viewers
     const isFirebaseSource =
       video.videoSource === 'firebase' ||
       Boolean(video.videoStoragePath) ||
@@ -69,7 +45,7 @@ export async function POST(req: NextRequest) {
       videoUrl: video.videoUrl || rawPlaybackUrl,
       embedUrl: video.embedUrl || rawPlaybackUrl,
       videoSource: isFirebaseSource ? 'firebase' : 'external',
-      quality: userPlanTier === 'vip' ? '4K UltraHD / 1080p 60fps' : userPlanTier === 'premium' ? '1080p FHD' : '720p HD',
+      quality: '1080p FHD / Master Dub',
       watermark: userId ? `DA-UID-${userId.slice(0, 6)}` : undefined,
     });
   } catch (error: any) {
@@ -96,9 +72,8 @@ export async function GET(req: NextRequest) {
     title: video.title,
     seriesName: video.seriesName || video.donghuaName,
     episodeNumber: video.episodeNumber,
-    accessType: video.accessType,
-    requiredPlan: video.requiredPlan,
-    isFree: video.accessType === 'free',
-    hasEmbedUrl: Boolean(video.embedUrl || video.avcaptionUrl),
+    accessType: 'free',
+    requiredPlan: 'free',
+    allowed: true,
   });
 }

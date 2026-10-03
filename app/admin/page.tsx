@@ -17,7 +17,7 @@ import { AdminCommentModeration } from '@/components/AdminCommentModeration';
 import { AdminPollManager } from '@/components/AdminPollManager';
 import { AdminAnnouncementManager } from '@/components/AdminAnnouncementManager';
 import { AdminLiveManager } from '@/components/AdminLiveManager';
-import { AdminSuperChatManager } from '@/components/AdminSuperChatManager';
+import { AdminReelManager } from '@/components/AdminReelManager';
 import { DonghuaLogo } from '@/components/DonghuaLogo';
 import {
   ShieldCheck,
@@ -42,18 +42,19 @@ import {
   Radio,
   Megaphone,
   Heart,
+  Film,
 } from 'lucide-react';
 
 type AdminTab =
   | 'dashboard'
   | 'users'
   | 'videos'
+  | 'reels'
   | 'upload'
   | 'comments'
   | 'polls'
   | 'live'
   | 'announcements'
-  | 'superchats'
   | 'notifications'
   | 'settings';
 
@@ -417,16 +418,16 @@ function AdminPageInner() {
         <div className="flex items-center space-x-1 overflow-x-auto pb-2 mb-8 no-scrollbar border-b border-[#1b1b28]">
           {[
             { id: 'dashboard', label: 'Dashboard Overview', icon: BarChart3 },
-            { id: 'users', label: 'User & Subscriptions', icon: Users },
+            { id: 'users', label: 'Registered Users', icon: Users },
             { id: 'videos', label: 'Manage Videos', icon: Video },
+            { id: 'reels', label: 'Short Reels', icon: Film },
             { id: 'upload', label: 'Add Video', icon: Upload },
             { id: 'comments', label: 'Comment Moderation', icon: MessageSquare },
             { id: 'polls', label: 'Community Polls', icon: BarChart3 },
             { id: 'live', label: 'Live Broadcasts', icon: Radio },
             { id: 'announcements', label: 'Announcements', icon: Megaphone },
-            { id: 'superchats', label: 'Super Chats', icon: Heart },
             { id: 'notifications', label: 'Email & Push Logs', icon: Bell },
-            { id: 'settings', label: 'Ad & Platform Settings', icon: Settings },
+            { id: 'settings', label: 'Platform Settings', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.id;
@@ -453,8 +454,8 @@ function AdminPageInner() {
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: 'Total Registered Cultivators', value: '14,820', change: '+18% this month' },
-                { label: 'Active Subscribers', value: '3,490', change: '+24% this month' },
-                { label: 'Monthly Revenue', value: '₹3,45,510', change: 'Razorpay Verified' },
+                { label: 'Streaming Access', value: '100% Free', change: 'All Sagas & Reels' },
+                { label: 'Monetization Model', value: 'Zero Paywalls', change: 'Completely Open' },
                 { label: 'Streaming Infrastructure', value: 'Google Cloud Storage', change: 'HLS & 4K Master Dubs' },
               ].map((stat, i) => (
                 <div key={i} className="p-5 rounded-2xl bg-[#0f0f18] border border-[#202032] space-y-1">
@@ -471,7 +472,7 @@ function AdminPageInner() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Users className="w-4 h-4 text-amber-400" />
-                    User &amp; Subscription Control
+                    User Management
                   </h3>
                   <button
                     onClick={() => setCurrentTab('users')}
@@ -481,14 +482,14 @@ function AdminPageInner() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Search user profiles by username, email, or user ID. Grant VIP/Premium plans, extend active subscriptions by days, or expire plans immediately.
+                  Search user profiles by username, email, or user ID. Review registered cultivators and account statuses.
                 </p>
                 <div className="pt-2 flex gap-3">
                   <button
                     onClick={() => setCurrentTab('users')}
                     className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs"
                   >
-                    Manage Users &amp; Plans
+                    Manage Users
                   </button>
                   <button
                     onClick={() => setCurrentTab('comments')}
@@ -505,7 +506,7 @@ function AdminPageInner() {
                   Community &amp; Live Engagement
                 </h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Launch live broadcasts with synchronized chat, create community polls for upcoming Hindi dub releases, and review Super Chat supporter contributions.
+                  Launch live broadcasts with synchronized chat, create community polls for upcoming Hindi dub releases, and manage public announcements.
                 </p>
                 <div className="pt-2 flex flex-wrap gap-2">
                   <button
@@ -521,10 +522,10 @@ function AdminPageInner() {
                     Schedule Live
                   </button>
                   <button
-                    onClick={() => setCurrentTab('superchats')}
-                    className="px-3 py-1.5 rounded-xl bg-[#181826] hover:bg-[#202032] text-pink-300 text-xs font-semibold border border-pink-500/30"
+                    onClick={() => setCurrentTab('reels')}
+                    className="px-3 py-1.5 rounded-xl bg-[#181826] hover:bg-[#202032] text-amber-300 text-xs font-semibold border border-amber-500/30"
                   >
-                    Super Chat Revenue
+                    Manage Reels
                   </button>
                 </div>
               </div>
@@ -539,6 +540,9 @@ function AdminPageInner() {
         {currentTab === 'videos' && (
           <AdminContentManagement onOpenUpload={() => setCurrentTab('upload')} />
         )}
+
+        {/* REELS MANAGEMENT */}
+        {currentTab === 'reels' && <AdminReelManager />}
 
         {/* TAB 4: MODERN DONGHUA-STYLE UPLOAD DASHBOARD */}
         {currentTab === 'upload' && (
@@ -560,10 +564,7 @@ function AdminPageInner() {
         {/* TAB 8: ANNOUNCEMENTS */}
         {currentTab === 'announcements' && <AdminAnnouncementManager />}
 
-        {/* TAB 9: SUPER CHATS */}
-        {currentTab === 'superchats' && <AdminSuperChatManager />}
-
-        {/* TAB 10: CENTRALIZED EMAIL & NOTIFICATION AUDIT LOGS */}
+        {/* TAB 9: CENTRALIZED EMAIL & NOTIFICATION AUDIT LOGS */}
         {currentTab === 'notifications' && <AdminNotificationManager />}
 
         {/* TAB 11: AD & PLATFORM SETTINGS */}

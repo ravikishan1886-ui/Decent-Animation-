@@ -42,13 +42,13 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/browse?filter=vip" className="hover:text-white transition-colors">
-                  VIP Cultivator Exclusives
+                <Link href="/browse?genre=Cultivation" className="hover:text-white transition-colors">
+                  Cultivation Sagas
                 </Link>
               </li>
               <li>
-                <Link href="/subscription" className="hover:text-white transition-colors">
-                  Subscription Plans
+                <Link href="/reels" className="hover:text-white transition-colors">
+                  Vertical Reels Feed
                 </Link>
               </li>
             </ul>
@@ -72,7 +72,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/terms" className="hover:text-white transition-colors">
-                  Terms &amp; Conditions
+                  Terms of Service
                 </Link>
               </li>
               <li>
@@ -83,17 +83,17 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Payment & Security Notice */}
+          {/* 100% Free Streaming Notice */}
           <div className="space-y-3">
             <h4 className="text-white font-semibold text-xs tracking-wider uppercase mb-2 text-amber-500/90 font-mono">
-              Secure Indian Payments
+              100% Free Streaming
             </h4>
             <p className="text-xs text-gray-400">
-              Payments powered via verified UPI, RuPay, Netbanking &amp; Credit Cards. Zero storage of raw card credentials.
+              Zero subscription fees, no locked paywalls, and no credit card required. Unlimited access to Chinese animation, episodes, and short reels.
             </p>
             <div className="flex items-center gap-2 p-2 rounded-lg bg-[#0e0e15] border border-[#20202e] text-[11px] text-gray-300">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>256-Bit SSL Encrypted &amp; Razorpay Verified</span>
+              <span>Full Unrestricted Access for All Viewers</span>
             </div>
           </div>
         </div>

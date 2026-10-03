@@ -6,17 +6,17 @@ import { UserProfile } from '@/lib/types';
 import {
   Users,
   Search,
-  Crown,
-  Calendar,
   ShieldCheck,
+  ShieldAlert,
   Ban,
   Clock,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  PlusCircle,
   X,
-  Sparkles,
+  UserCheck,
+  MessageSquareOff,
+  Trash2,
 } from 'lucide-react';
 
 export function AdminUserManager() {
@@ -26,11 +26,7 @@ export function AdminUserManager() {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [actionType, setActionType] = useState<string>('');
-  const [selectedPlan, setSelectedPlan] = useState<string>('vip');
   const [selectedRole, setSelectedRole] = useState<'user' | 'admin'>('user');
-  const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
-  const [extendDays, setExtendDays] = useState<number>(30);
-  const [banReason, setBanReason] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,13 +74,9 @@ export function AdminUserManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: actionType,
-          targetUserId: selectedUser.userId,
+          targetUserId: selectedUser.userId || selectedUser.uid,
           adminEmail: user.email,
-          plan: selectedPlan,
           role: selectedRole,
-          customExpiryDate: customExpiryDate || undefined,
-          days: extendDays,
-          reason: banReason,
         }),
       });
 
@@ -151,36 +143,33 @@ export function AdminUserManager() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-[#181826] border-b border-[#242438] text-gray-400 font-bold uppercase tracking-wider">
-                <th className="p-4">User</th>
-                <th className="p-4">Current Plan</th>
-                <th className="p-4">Sub Status</th>
-                <th className="p-4">Expiry Date</th>
-                <th className="p-4">Super Chat</th>
+                <th className="p-4">Cultivator</th>
                 <th className="p-4">Role</th>
-                <th className="p-4 text-right">Actions</th>
+                <th className="p-4">Account Status</th>
+                <th className="p-4">Registered Date</th>
+                <th className="p-4 text-right">Moderation Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e1e2e]">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-400">
+                  <td colSpan={5} className="p-8 text-center text-gray-400">
                     Loading cultivator records...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-400">
-                    No users match the search criteria.
+                  <td colSpan={5} className="p-8 text-center text-gray-400">
+                    No cultivators match the search criteria.
                   </td>
                 </tr>
               ) : (
                 users.map((u) => {
-                  const isVip = u.currentPlan === 'vip' || u.planId === 'vip';
-                  const isPremium = u.currentPlan === 'premium' || u.planId === 'premium';
-                  const isActive = u.subscriptionStatus === 'active';
+                  const isAdminRole = u.role === 'admin';
+                  const isMuted = Boolean(u.commentingBanned);
 
                   return (
-                    <tr key={u.userId} className="hover:bg-[#161622] transition-colors">
+                    <tr key={u.userId || u.uid} className="hover:bg-[#161622] transition-colors">
                       {/* User details */}
                       <td className="p-4">
                         <div className="space-y-0.5">
@@ -188,119 +177,80 @@ export function AdminUserManager() {
                             {u.username || u.name || 'Cultivator'}
                           </p>
                           <p className="text-gray-400 font-mono text-[11px]">{u.email}</p>
-                          <p className="text-gray-600 font-mono text-[9px]">ID: {u.userId}</p>
+                          <p className="text-gray-600 font-mono text-[9px]">UID: {u.userId || u.uid}</p>
                         </div>
                       </td>
 
-                      {/* Plan */}
+                      {/* Role */}
                       <td className="p-4">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            isVip
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                              : isPremium
-                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                              : 'bg-gray-800 text-gray-300'
+                            isAdminRole
+                              ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                              : 'bg-zinc-800 text-zinc-300'
                           }`}
                         >
-                          {u.currentPlan || u.planId || 'Free'}
+                          {isAdminRole ? 'Admin' : 'Cultivator'}
                         </span>
                       </td>
 
                       {/* Status */}
                       <td className="p-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            isActive
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
-                              : 'bg-zinc-800 text-zinc-400'
-                          }`}
-                        >
-                          {u.subscriptionStatus || 'Inactive'}
-                        </span>
-                      </td>
-
-                      {/* Expiry */}
-                      <td className="p-4 font-mono text-gray-300 text-[11px]">
-                        {u.subscriptionExpiry
-                          ? new Date(u.subscriptionExpiry).toLocaleDateString()
-                          : '—'}
-                      </td>
-
-                      {/* Super chat total */}
-                      <td className="p-4 font-mono font-bold text-emerald-400">
-                        ₹{u.superChatTotal || 0}
-                      </td>
-
-                      {/* Role */}
-                      <td className="p-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#202030] text-gray-300">
-                          {u.role || 'user'}
-                        </span>
-                        {u.commentingBanned && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded bg-red-950 text-red-400 text-[9px] font-bold">
-                            Muted
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-700">
+                            Active (Free)
                           </span>
-                        )}
+                          {isMuted && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-950 text-amber-300 border border-amber-700">
+                              Muted
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Created */}
+                      <td className="p-4 font-mono text-gray-400 text-[11px]">
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
                       </td>
 
                       {/* Action buttons */}
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
                             onClick={() => {
                               setSelectedUser(u);
-                              setActionType('GIVE_PLAN');
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/40"
-                          >
-                            Give Plan
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setActionType('CHANGE_PLAN');
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/40"
-                          >
-                            Change
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setActionType('EXTEND_DAYS');
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/40"
-                          >
-                            Extend
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setActionType('REMOVE_PLAN');
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-red-950 text-red-300 border border-red-800 hover:bg-red-900"
-                          >
-                            Remove
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setSelectedRole(u.role === 'admin' ? 'admin' : 'user');
+                              setSelectedRole(isAdminRole ? 'user' : 'admin');
                               setActionType('CHANGE_ROLE');
                             }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-900/40 text-purple-300 border border-purple-700/50 hover:bg-purple-800/60"
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                              isAdminRole
+                                ? 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                                : 'bg-red-950/60 text-red-300 border-red-800/60 hover:bg-red-900/60'
+                            }`}
                           >
-                            Role
+                            {isAdminRole ? 'Demote to User' : 'Promote Admin'}
                           </button>
                           <button
                             onClick={() => {
                               setSelectedUser(u);
-                              setActionType('SET_EXPIRY');
+                              setActionType('TOGGLE_MUTE');
                             }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-900/40 text-indigo-300 border border-indigo-700/50 hover:bg-indigo-800/60"
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                              isMuted
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/60'
+                                : 'bg-amber-950/60 text-amber-300 border-amber-800/60 hover:bg-amber-900/60'
+                            }`}
                           >
-                            Date
+                            {isMuted ? 'Unmute' : 'Mute Comments'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setActionType('DELETE_USER');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/40"
+                          >
+                            Delete
                           </button>
                         </div>
                       </td>
@@ -319,7 +269,13 @@ export function AdminUserManager() {
           <div className="w-full max-w-md rounded-2xl bg-[#14141e] border border-[#2e2e42] p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#242436] pb-3">
               <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-                {actionType.replace('_', ' ')} • {selectedUser.username || selectedUser.email}
+                {actionType === 'CHANGE_ROLE'
+                  ? 'Update Role'
+                  : actionType === 'TOGGLE_MUTE'
+                  ? 'Moderation Privileges'
+                  : 'Delete Cultivator'}
+                {' • '}
+                {selectedUser.username || selectedUser.email}
               </h4>
               <button
                 onClick={() => {
@@ -333,86 +289,6 @@ export function AdminUserManager() {
             </div>
 
             {/* Modal Body Based on Action */}
-            {(actionType === 'GIVE_PLAN' || actionType === 'CHANGE_PLAN') && (
-              <div className="space-y-3">
-                <label className="text-xs text-gray-300 block">Select Subscription Plan:</label>
-                <select
-                  value={selectedPlan}
-                  onChange={(e) => setSelectedPlan(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white"
-                >
-                  <option value="free">Free Tier (₹0)</option>
-                  <option value="basic-monthly">Basic Monthly (₹59/mo)</option>
-                  <option value="basic-quarterly">Basic Quarterly (₹159/3mo)</option>
-                  <option value="basic-yearly">Basic Yearly (₹549/yr)</option>
-                  <option value="premium-monthly">Premium Monthly (₹99/mo - Popular)</option>
-                  <option value="premium-quarterly">Premium Quarterly (₹269/3mo)</option>
-                  <option value="premium-yearly">Premium Yearly (₹899/yr)</option>
-                  <option value="vip-monthly">VIP Monthly (₹149/mo)</option>
-                  <option value="vip-quarterly">VIP Quarterly (₹399/3mo)</option>
-                  <option value="vip-yearly">VIP Yearly (₹1,299/yr)</option>
-                </select>
-              </div>
-            )}
-
-            {(actionType === 'EXTEND_DAYS' || actionType === 'EXTEND_PLAN') && (
-              <div className="space-y-3">
-                <label className="text-xs text-gray-300 block font-semibold">Extend Plan Duration:</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExtendDays(30)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                      extendDays === 30
-                        ? 'bg-amber-500 text-black border-amber-400'
-                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
-                    }`}
-                  >
-                    +30 Days
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExtendDays(90)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                      extendDays === 90
-                        ? 'bg-amber-500 text-black border-amber-400'
-                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
-                    }`}
-                  >
-                    +90 Days
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExtendDays(365)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                      extendDays === 365
-                        ? 'bg-amber-500 text-black border-amber-400'
-                        : 'bg-[#181824] text-gray-300 border-[#2b2b3d] hover:bg-[#202030]'
-                    }`}
-                  >
-                    +365 Days
-                  </button>
-                </div>
-                <div className="pt-1">
-                  <label className="text-[11px] text-gray-400 block mb-1">Custom Days:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={extendDays}
-                    onChange={(e) => setExtendDays(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white font-mono"
-                  />
-                </div>
-              </div>
-            )}
-
-            {(actionType === 'CANCEL_PLAN' || actionType === 'REMOVE_PLAN') && (
-              <p className="text-xs text-red-300 leading-relaxed">
-                Are you sure you want to remove and expire this user's active membership plan?
-              </p>
-            )}
-
             {actionType === 'CHANGE_ROLE' && (
               <div className="space-y-3">
                 <label className="text-xs text-gray-300 block">Select User Role:</label>
@@ -421,22 +297,24 @@ export function AdminUserManager() {
                   onChange={(e) => setSelectedRole(e.target.value as 'user' | 'admin')}
                   className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white"
                 >
-                  <option value="user">Standard User</option>
-                  <option value="admin">Administrator</option>
+                  <option value="user">Standard Cultivator (User)</option>
+                  <option value="admin">Platform Administrator (Admin)</option>
                 </select>
               </div>
             )}
 
-            {actionType === 'SET_EXPIRY' && (
-              <div className="space-y-3">
-                <label className="text-xs text-gray-300 block">Set Plan Expiry Date:</label>
-                <input
-                  type="date"
-                  value={customExpiryDate}
-                  onChange={(e) => setCustomExpiryDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#181824] border border-[#2b2b3d] text-xs text-white"
-                />
-              </div>
+            {actionType === 'TOGGLE_MUTE' && (
+              <p className="text-xs text-amber-200 leading-relaxed">
+                {selectedUser.commentingBanned
+                  ? `Restore commenting privileges for @${selectedUser.username || selectedUser.email}?`
+                  : `Temporarily mute @${selectedUser.username || selectedUser.email} from posting comments on videos and reels?`}
+              </p>
+            )}
+
+            {actionType === 'DELETE_USER' && (
+              <p className="text-xs text-red-300 leading-relaxed">
+                Are you sure you want to permanently delete user @{selectedUser.username || selectedUser.email} from the database? This action cannot be undone.
+              </p>
             )}
 
             <div className="flex items-center justify-end gap-2 pt-2">

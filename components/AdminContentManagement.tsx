@@ -172,10 +172,6 @@ export function AdminContentManagement({ onOpenUpload, onEditVideo }: AdminConte
 
   const filterTabs = [
     { id: 'all', label: 'All Content' },
-    { id: 'free', label: 'Free' },
-    { id: 'subscription', label: 'Subscription' },
-    { id: 'premium', label: 'Premium' },
-    { id: 'vip', label: 'VIP' },
     { id: 'published', label: 'Published' },
     { id: 'draft', label: 'Drafts' },
   ];

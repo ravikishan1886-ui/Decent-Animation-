@@ -4,17 +4,17 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { Home, Compass, Search, Bookmark, User, Crown } from 'lucide-react';
+import { Home, Compass, Search, User, Film } from 'lucide-react';
 
 export function MobileBottomNav() {
   const pathname = usePathname();
-  const { user, isSubscriptionActive } = useAuth();
+  const { user } = useAuth();
 
   const navItems = [
     { label: 'Home', href: '/', icon: Home },
+    { label: 'Reels', href: '/reels', icon: Film },
     { label: 'Browse', href: '/browse', icon: Compass },
     { label: 'Search', href: '/search', icon: Search },
-    { label: 'Plans', href: '/subscription', icon: Crown, highlight: !isSubscriptionActive },
     { label: 'Profile', href: user ? '/dashboard' : '/login', icon: User },
   ];
 
@@ -40,9 +40,6 @@ export function MobileBottomNav() {
             >
               <div className="relative">
                 <Icon className={`w-5 h-5 ${isActive ? 'scale-110 drop-shadow-[0_0_6px_rgba(212,175,55,0.6)]' : ''}`} />
-                {item.highlight && (
-                  <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
               </div>
               <span className="text-[10px] mt-1 tracking-tight truncate">{item.label}</span>
             </Link>
